@@ -60,12 +60,60 @@
 ::  External call arrows
 ::
 =>  |%
-    ++  get-bowl  (call-ext:arr %get-bowl ~)  ::  (~ => [noun+bowl:rand ~])
+    ++  ext
+      |%
+      ::  (~ => [noun+bowl:rand ~])
+      ::
+      ++  get-bowl  (call-ext:arr %get-bowl ~)
+      ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
+      ::
+      ++  get-txt-file
+        |=  pax=path
+        (call-ext:arr %get-txt-file noun+pax ~)
+      --
+    ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
+    ::
+    ++  fetch-thread
+      =/  m  (strand (list lv))
+      |=  name=term
+      ^-  $-((list lv) (strand-form (list lv)))
+      ?+    name  ~|(%thread-not-defined !!)
+          %get-bowl
+        ::  (~ => [noun+bowl:rand ~])
+        ::  does not need the argument
+        ::
+        |=  *
+        ^-  form:m
+        ;<  bol=bowl:rand  bind:m  get-bowl:sio
+        (pure:m noun+bol ~)
+      ::
+          %get-txt-file
+        ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
+        ::
+        |=  l=(pole lv)
+        ^-  form:m
+        =*  prefix  %scripts
+        ?>  ?=([[%noun p=*] ~] l)
+        =+  ;;(pax=path p.l)
+        ;<  bol=bowl:rand  bind:m  get-bowl:sio
+        =/  bek=beak  [our %base %da now]:bol
+        ;<  =riot:clay  bind:m
+          (warp:sio p.bek q.bek ~ %sing %x r.bek [prefix pax])
+        ::
+        ?~  riot  (pure:m ~)
+        ?.  =(%txt p.r.u.riot)  (pure:m ~)
+        ?~  wan=(mole |.(!<(wain q.r.u.riot)))
+          ~&  >>>  [%weird-txt pax]
+          (pure:m ~)
+        =/  str=cord  (of-wain:format u.wan)
+        (pure:m octs+[(met 3 str) str] ~)
+      ==
+    ::
+        %set-txt-file
+      stub
     --
 ::
 ::  Thread builder helping functions
-::  Monadic interface `m` can be Wasm interface or thread interface,
-::  depending on the context.
 ::
 =>  |%
     ::  +malloc-write: allocate and immediately write `p` bytes of `q` atom
@@ -78,6 +126,13 @@
       ;<  ptr-u=@  try:m  (call-1 'malloc' p.data ~)
       ;<  ~        try:m  (memwrite ptr-u data)
       (return:m ptr-u)
+    ::  +malloc-cord: allocate and write a null-terminated cord
+    ::
+    ++  malloc-cord
+      |=  str=cord
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      (malloc-write +((met 3 str)) str)
     ::  +ring: complex call, with other calls inlined
     ::
     ++  ring
@@ -187,7 +242,7 @@
       =,  arr
       ;<  acc=acc-mold  try:m  get-acc
       =+  (get-js-ctx acc)
-      ;<  nam-u=@  try:m  (malloc-write +((met 3 name)) name)
+      ;<  nam-u=@  try:m  (malloc-cord name)
       ;<  res-u=@  try:m  (call-1 'QTS_NewFunction' ctx-u mag-w nam-u ~)
       ::
       ;<  err=(unit cord)  try:m  (mayb-error res-u)
@@ -218,10 +273,9 @@
       ^-  form:m
       =,  arr
       =/  filename=cord  'script-eval.js'
-      =/  filename-len  (met 3 filename)
       ;<  run-u=@    try:m  (call-1 'QTS_NewRuntime' ~)
       ;<  ctx-u=@    try:m  (call-1 'QTS_NewContext' run-u 0 ~)
-      ;<  fil-u=@    try:m  (malloc-write +(filename-len) filename)
+      ;<  fil-u=@    try:m  (malloc-cord filename)
       =|  tor=acc
       =.  tor  tor(run-u run-u, ctx-u ctx-u, fil-u fil-u)
       ;<  ~          try:m  (set-acc tor)
@@ -229,6 +283,8 @@
       ;<  undef-u=@        try:m  (call-1 'QTS_GetUndefined' ~)
       ;<  err=(unit cord)  try:m  (register-function 'require' 0 global-this-u)
       ?^  err  (ret |+[u.err 'make require'])
+      ::  define `module` object
+      ::
       ;<  *  try:m
         %:  ring  'QTS_DefineProp'
           ctx-u
@@ -236,7 +292,7 @@
         ::
           %:  ding  'QTS_NewString'                       ::  property name
             ctx-u
-            (malloc-write +((met 3 'module')) 'module')   ::  char*
+            (malloc-cord 'module')
             ~
           ==
         ::
@@ -246,6 +302,75 @@
           1                                               ::  configurable
           1                                               ::  enumerable
           1                                               ::  has value
+          ~
+        ==
+      ::  define `console` object
+      ::
+      ;<  console-str-u=@  try:m
+        %:  ding  'QTS_NewString'
+          ctx-u
+          (malloc-cord 'console')
+          ~
+        ==
+      ::
+      ;<  *  try:m
+        %:  ring  'QTS_DefineProp'
+          ctx-u
+          global-this-u
+        ::
+          console-str-u
+        ::
+          (call-1 'QTS_NewObject' ctx-u ~)                ::  init value
+          undef-u                                         ::  getter
+          undef-u                                         ::  setter
+          1                                               ::  configurable
+          1                                               ::  enumerable
+          1                                               ::  has value
+          ~
+        ==
+      ::
+      ;<  console-u=@  try:m
+        (call-1 'QTS_GetProp' ctx-u global-this-u console-str-u ~)
+      ::
+      ;<  *  try:m  (register-function 'log' 1 console-u)
+      ;<  *  try:m  (register-function 'error' 2 console-u)
+      ;<  *  try:m  (register-function 'warn' 3 console-u)
+      ;<  *  try:m  (register-function 'info' 4 console-u)
+      ::
+      ::  define fetch
+      ::
+      ;<  *  try:m  (register-function '_host_fetch_url' 7 global-this-u)
+      ;<  fun-u=@  try:m
+        %-  js-eval
+        '''
+        var _fetch = function(url, options) {
+          return new Promise((resolve, reject) => {
+            const res = globalThis._host_fetch_url(url, options);
+            //
+            resolve({
+              status: res.status,
+              statusText: res.statusText,
+              headers: res.headers,
+              ok: res.status >= 200 && res.status < 300,
+              text: () => Promise.resolve(res.body),
+              json: () => Promise.resolve(JSON.parse(res.body)),
+            });
+          });
+        };
+        _fetch
+        '''
+      ::
+      ;<  *  try:m
+        %:  ring  'QTS_DefineProp'
+          ctx-u
+          global-this-u
+          (ding 'QTS_NewString' ctx-u (malloc-cord 'fetch') ~)
+          fun-u
+          undef-u  ::  get
+          undef-u  ::  set
+          0        ::  configurable
+          1        ::  enumerable
+          1        ::  has_value
           ~
         ==
       ::
@@ -263,22 +388,6 @@
       ?^  err  (ret |+[u.err 'failed to call the exported function'])
       ;<  str=cord         try:m  (get-js-string res-u)
       (ret &+str)
-    ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
-    ::
-    ++  fetch-thread
-      =/  m  (strand (list lv))
-      |=  name=term
-      ^-  $-((list lv) (strand-form (list lv)))
-      ?+    name  ~|(%thread-not-defined !!)
-          %get-bowl
-        ::  does not need the argument
-        ::
-        |=  *
-        ^-  form:m
-        ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        (pure:m noun+bol ~)
-      ::
-      ==
     ::  +get-result: parse (list lv) to get result type.
     ::  Must roundtrip with +ret.
     ::
@@ -299,7 +408,7 @@
       ;<  acc=acc-mold  try:m  get-acc
       =+  (get-js-ctx acc)
       ::
-      ;<  crd-u=@  try:m  (malloc-write +((met 3 cord)) cord)
+      ;<  crd-u=@  try:m  (malloc-cord cord)
       ;<  str-u=@  try:m  (call-1 'QTS_NewString' ctx-u crd-u ~)
       ;<  is-eq=@  try:m  (call-1 'QTS_IsEqual' ctx-u val-u str-u 0 ~)  :: QTS_EqualOp_SameValue
       ;<  *        try:m  (call 'QTS_FreeValuePointer' ctx-u str-u ~)
@@ -321,24 +430,68 @@
         %:  ring  'QTS_SetProp'
           ctx-u
           err-u
-          (ding 'QTS_NewString' ctx-u (malloc-write +((met 3 field)) field) ~)
-          (ding 'QTS_NewString' ctx-u (malloc-write +((met 3 txt)) txt) ~)
+          (ding 'QTS_NewString' ctx-u (malloc-cord field) ~)
+          (ding 'QTS_NewString' ctx-u (malloc-cord txt) ~)
           ~
         ==
       ::
       (return:m err-u)
     ::  +urbit-thread-make-object: construct a JS object to be imported with
     ::  `require`. Returns a pointer to that object.
+    ::  Every registered functions' magic number must be recognized by
+    ::  +qts-host-call-function
     ::
     ++  urbit-thread-make-object
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
-      stub
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      ::
+      ;<  undef-u=@        try:m  (call-1 'QTS_GetUndefined' ~)
+      ;<  obj-u=@          try:m  (call-1 'QTS_NewObject' ctx-u ~)
+      ::
+      ;<  *  try:m  (register-function 'load_txt_file' 5 obj-u)
+      ;<  *  try:m  (register-function 'store_txt_file' 6 obj-u)
+      ::
+      :: ;<  *  try:m  (register-function 'foo' 1 obj-u)
+      ::
+      (return:m obj-u)
+    ::  +throw-error: returns a pointer to JSException
+    ::
+    ++  throw-error
+      |=  err=cord
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      (ding 'QTS_Throw' ctx-u (make-error err) ~)
     --
 ::
 ::  Wasm & JS imports
 ::
 =>  |%
+    ++  throw-args
+      |=  [name=cord got=@ need=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      %-  throw-error
+      %:  rap  3
+        'Not enough arguments for function "'  name  '", got '
+        (scot %ud got)  ', need at least '  (scot %ud need)
+        ~
+      ==
+    ::
+    ++  throw-path
+      |=  xap=cord
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      %-  throw-error
+      %:  rap  3
+        'Invalid path: "'  xap  
+        ~
+      ==
     :: +require: NodeJS-like import interface
     ::
     ++  require
@@ -346,7 +499,7 @@
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?>  (gte argc-w 1)
+      ?.  (gte argc-w 1)  (throw-args 'require' argc-w 1)
       ;<  is-urbit-thread=?  try:m  (js-val-cord-compare argv-u 'urbit_thread')
       ?:  is-urbit-thread  urbit-thread-make-object
       ::
@@ -357,12 +510,65 @@
       ::  If the string is not matched: throw error
       ::
       ;<  str=cord  try:m  (get-js-string argv-u)
-      %:  ding
-        'QTS_Throw'
-        ctx-u
-        (make-error (rap 3 'Name "' str '" not recognized by "require"' ~))
-        ~
-      ==
+      (throw-error (rap 3 'Name "' str '" not recognized by "require"' ~))
+    ::
+    ++  console-log
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 1)  (throw-args 'console.log' argc-w 1)
+      ;<  str=cord  try:m  (get-js-string argv-u)
+      ~&  str
+      (call-1 'QTS_GetUndefined' ~)
+    ::
+    ++  console-error
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 1)  (throw-args 'console.error' argc-w 1)
+      ;<  str=cord  try:m  (get-js-string argv-u)
+      ~&  >>>  str
+      (call-1 'QTS_GetUndefined' ~)
+    ::
+    ++  console-warn
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 1)  (throw-args 'console.error' argc-w 1)
+      ;<  str=cord  try:m  (get-js-string argv-u)
+      ~&  >>  str
+      (call-1 'QTS_GetUndefined' ~)
+    ::
+    ++  load-txt-file
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 1)  (throw-args 'load_txt_file' argc-w 1)
+      ;<  str=cord  try:m  (get-js-string argv-u)
+      ?~  pax=(mole |.((stab str)))  (throw-path str)
+      ;<  res=(pole lv)  try:m  (get-txt-file:ext u.pax)
+      ?~  res  (throw-error (rap 3 'No .txt file at path ' str ~))
+      ?>  ?=([[%octs p=octs] ~] res)
+      (ding 'QTS_NewString' ctx-u (malloc-cord q.p.res) ~)
+    ::
+    ++  store-txt-file
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      stub
+    ::
+    ++  host-fetch-url  ::  XX fake fetch to test Promises
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 2)  (throw-args '_host_fetch_url' argc-w 2)
+      (ding 'QTS_NewString' ctx-u (malloc-cord 'yes hello') ~)
+    ::
     ::  +clock-time-get: WASI import to get time
     ::
     ++  clock-time-get
@@ -370,7 +576,7 @@
       ^-  form:m
       ?>  ?=([[%i32 @] [%i64 @] [%i32 time-u=@] ~] args)
       =,  arr  =,  args
-      ;<  l=(pole lv)   try:m  get-bowl
+      ;<  l=(pole lv)   try:m  get-bowl:ext
       ~!  l
       ?>  ?=([[%noun owl=*] ~] l)
       ;<  tor=acc-mold  try:m  get-acc
@@ -406,6 +612,13 @@
         ::  put JS imports here
         ::
           %0  require
+          %1  console-log
+          %2  console-error
+          %3  console-warn
+          %4  console-log
+          %5  load-txt-file
+          %6  store-txt-file
+          %7  host-fetch-url
         ==
       ::
       ;<  val-u=@  try:m  (arrow ctx-u this-u argc-w argv-u)
@@ -415,7 +628,7 @@
     ::  by reallocations, so we do nothing.
     ::
     ++  emscripten-notify-memory-growth
-      |=  args=(pole cw)
+      |=  *
       (return:m ~)
     --
 ::
