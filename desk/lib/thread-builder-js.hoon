@@ -10,6 +10,7 @@
 =*  strand-form  strand-form-raw:rand
 =*  yield  script-yield:lia-sur:wasm
 =*  stub  !!
+!:
 ::  Types, interfaces
 ::
 =>  |%
@@ -53,7 +54,6 @@
       ==
     ::
     +$  acc-mold  *
-    ++  m  (script:lia-sur:wasm (list cw) acc-mold)
     ++  arr  (arrows:wasm acc-mold)
     --
 ::
@@ -64,12 +64,17 @@
       |%
       ::  (~ => [noun+bowl:rand ~])
       ::
-      ++  get-bowl  (call-ext:arr %get-bowl ~)
+      :: ++  get-bowl  (call-ext:arr %get-bowl ~)
       ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
       ::
       ++  get-txt-file
         |=  pax=path
         (call-ext:arr %get-txt-file noun+pax ~)
+      ::  ([noun+path noun+cord ~] => ~)
+      ::
+      ++  set-txt-file
+        |=  [pax=path txt=cord]
+        (call-ext:arr %set-txt-file noun+pax noun+txt ~)
       --
     ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
     ::
@@ -77,7 +82,7 @@
       =/  m  (strand (list lv))
       |=  name=term
       ^-  $-((list lv) (strand-form (list lv)))
-      ?+    name  ~|(%thread-not-defined !!)
+      ?+    name  ~|(thread-not-defined+name !!)
           %get-bowl
         ::  (~ => [noun+bowl:rand ~])
         ::  does not need the argument
@@ -101,16 +106,27 @@
           (warp:sio p.bek q.bek ~ %sing %x r.bek [prefix pax])
         ::
         ?~  riot  (pure:m ~)
-        ?.  =(%txt p.r.u.riot)  (pure:m ~)
+        ?.  =(%txt p.r.u.riot)
+          ~&  >>>  [%not-a-txt pax]
+          (pure:m ~)
         ?~  wan=(mole |.(!<(wain q.r.u.riot)))
           ~&  >>>  [%weird-txt pax]
           (pure:m ~)
         =/  str=cord  (of-wain:format u.wan)
         (pure:m octs+[(met 3 str) str] ~)
+      ::
+          %set-txt-file
+        ::  ([noun+path noun+cord ~] => ~)
+        ::
+        |=  l=(pole lv)
+        ^-  form:m
+        =*  prefix  %scripts
+        ?>  ?=([[%noun p=*] [%noun t=*] ~] l)
+        =+  ;;([pax=path txt=cord] [p.l t.l])
+        =/  wan=wain  (to-wain:format txt)
+        =/  not=note-arvo  [%c [%info %base %& [prefix^pax %ins %txt !>(wan)]~]]
+        (send-raw-card:sio [%pass / %arvo not])
       ==
-    ::
-        %set-txt-file
-      stub
     --
 ::
 ::  Thread builder helping functions
@@ -339,21 +355,23 @@
       ::
       ::  define fetch
       ::
-      ;<  *  try:m  (register-function '_host_fetch_url' 7 global-this-u)
+      ;<  *  try:m  (register-function 'fetch_sync' 7 global-this-u)
       ;<  fun-u=@  try:m
         %-  js-eval
         '''
         var _fetch = function(url, options) {
           return new Promise((resolve, reject) => {
-            const res = globalThis._host_fetch_url(url, options);
+            const res = globalThis.fetch_sync(url, options);
+            //console.log("_fetch");
+            //console.log(res);
             //
             resolve({
-              status: res.status,
-              statusText: res.statusText,
-              headers: res.headers,
-              ok: res.status >= 200 && res.status < 300,
-              text: () => Promise.resolve(res.body),
-              json: () => Promise.resolve(JSON.parse(res.body)),
+              status: 200,                                      //  res.status,
+              statusText: "OK",                                 //  res.statusText,
+              headers: {"Content-Type": "application/json"},    //  res.headers,
+              ok: true,
+              text: () => Promise.resolve(res),                 //  res.body
+              json: () => Promise.resolve(JSON.parse(res)),     //  res.body
             });
           });
         };
@@ -374,15 +392,21 @@
           ~
         ==
       ::
-      ;<  res-u=@          try:m  (js-eval code)  :: imports the interface library via require, exports a function to module.exports
+      ::
+      :: imports the interface library via require, exports a function to module.exports
+      ::
+      ;<  res-u=@          try:m  (js-eval code)
       ;<  err=(unit cord)  try:m  (mayb-error res-u)
       ?^  err  (ret |+[u.err 'failed to export the script function'])
       ;<  res-u=@          try:m
         %-  js-eval
         '''
-        let _res = module.exports();
-        _res
+        module.exports()
         '''
+      ::
+      :: ;<  dump-u=@  try:m  (call-1 'malloc' 4 ~)  ::  XX use scratch arena for things like that
+      :: ;<  *         try:m
+      ::   (call 'QTS_ExecutePendingJob' run-u ^~((sub (bex 32) 1)) dump-u ~)
       ::
       ;<  err=(unit cord)  try:m  (mayb-error res-u)
       ?^  err  (ret |+[u.err 'failed to call the exported function'])
@@ -467,6 +491,66 @@
       ;<  acc=acc-mold  try:m  get-acc
       =+  (get-js-ctx acc)
       (ding 'QTS_Throw' ctx-u (make-error err) ~)
+    ::  +parse-path: friendly path parser, replaces .ext with /ext
+    ::
+    ++  parse-path
+      |=  xap=cord
+      |^  ^-  (unit path)
+      (rush xap path-rule)
+      ::
+      ++  urs-ab-dotless
+        %+  cook
+          |=(a=tape (rap 3 ^-((list @) a)))
+        (star ;~(pose nud low hep sig cab))
+      ::
+      ++  path-rule
+        %+  sear
+          |=  p=path
+          ^-  (unit path)
+          ?:  ?=([~ ~] p)  `~
+          ?.  =(~ (rear p))  `p
+          ~
+        ;~  pfix
+          ::  optional starting /
+          ::
+          (punt fas)
+        ::::
+          ::  foo/bar/baz.abc
+          ::
+          |-
+          =*  this  $
+          %+  knee  *path  |.  ~+
+          ;~  pose
+            ::  done
+            ::
+            (full (easy ~))
+          ::::
+            ::  foo.bar
+            ::
+            %+  cook  |=([a=@ta b=@ta] ~[a b])
+            (full ;~(plug urs-ab-dotless ;~(pfix dot urs:ab)))
+          ::::
+            ::  foo | foo/...
+            ::
+            ;~(plug urs:ab ;~(pose (full (easy ~)) ;~(pfix fas this)))
+          ==
+        ==
+      --
+    ::  +return-undefined: return a pointer to a copy of `undefined` constant
+    ::
+    ::    apparently QuickJS crashes when it tries to free a constant pointer
+    ::    return by QTS_GetUndefined and friends, so we duplicate a value
+    ::    for safe return
+    ::
+    ++  return-undefined
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      ;<  undef-const-u=@  try:m  (call-1 'QTS_GetUndefined' ~)
+      (call-1 'QTS_DupValuePointer' ctx-u undef-const-u ~)
+    ::
     --
 ::
 ::  Wasm & JS imports
@@ -517,30 +601,42 @@
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?.  (gte argc-w 1)  (throw-args 'console.log' argc-w 1)
-      ;<  str=cord  try:m  (get-js-string argv-u)
-      ~&  str
-      (call-1 'QTS_GetUndefined' ~)
+      =|  strs=(list cord)
+      |-  ^-  form:m
+      ?:  =(argc-w 0)
+        ~&  `@t`(rap 3 (join ' ' strs))
+        return-undefined
+      =.  argc-w  (dec argc-w)
+      ;<  str=cord  try:m  (get-js-string (add (mul 8 argc-w) argv-u))
+      $(strs [str strs])
     ::
     ++  console-error
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?.  (gte argc-w 1)  (throw-args 'console.error' argc-w 1)
-      ;<  str=cord  try:m  (get-js-string argv-u)
-      ~&  >>>  str
-      (call-1 'QTS_GetUndefined' ~)
+      =|  strs=(list cord)
+      |-  ^-  form:m
+      ?:  =(argc-w 0)
+        ~&  >>>  `@t`(rap 3 (join ' ' strs))
+        return-undefined
+      =.  argc-w  (dec argc-w)
+      ;<  str=cord  try:m  (get-js-string (add (mul 8 argc-w) argv-u))
+      $(strs [str strs])
     ::
     ++  console-warn
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?.  (gte argc-w 1)  (throw-args 'console.error' argc-w 1)
-      ;<  str=cord  try:m  (get-js-string argv-u)
-      ~&  >>  str
-      (call-1 'QTS_GetUndefined' ~)
+      =|  strs=(list cord)
+      |-  ^-  form:m
+      ?:  =(argc-w 0)
+        ~&  >>  `@t`(rap 3 (join ' ' strs))
+        return-undefined
+      =.  argc-w  (dec argc-w)
+      ;<  str=cord  try:m  (get-js-string (add (mul 8 argc-w) argv-u))
+      $(strs [str strs])
     ::
     ++  load-txt-file
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
@@ -548,10 +644,10 @@
       ^-  form:m
       =,  arr
       ?.  (gte argc-w 1)  (throw-args 'load_txt_file' argc-w 1)
-      ;<  str=cord  try:m  (get-js-string argv-u)
-      ?~  pax=(mole |.((stab str)))  (throw-path str)
+      ;<  xap=cord  try:m  (get-js-string argv-u)
+      ?~  pax=(parse-path xap)  (throw-path xap)
       ;<  res=(pole lv)  try:m  (get-txt-file:ext u.pax)
-      ?~  res  (throw-error (rap 3 'No .txt file at path ' str ~))
+      ?~  res  (throw-error (rap 3 'No .txt file at path ' xap ~))
       ?>  ?=([[%octs p=octs] ~] res)
       (ding 'QTS_NewString' ctx-u (malloc-cord q.p.res) ~)
     ::
@@ -559,33 +655,43 @@
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
-      stub
+      =,  arr
+      ?.  (gte argc-w 2)  (throw-args 'store_txt_file' argc-w 2)
+      ;<  xap=cord  try:m  (get-js-string argv-u)
+      ;<  txt=cord  try:m  (get-js-string (add argv-u 8))  ::  sizeof JSValue == 8 in Wasm build of QuickJS
+      ?~  pax=(parse-path xap)  (throw-path xap)
+      =/  las=@ta  (rear u.pax)
+      ?.  =(%txt las)
+        (throw-error (rap 3 'Invalid path extension: want txt, got ' las ~))
+      ;<  *         try:m  (set-txt-file:ext u.pax txt)
+      return-undefined
     ::
     ++  host-fetch-url  ::  XX fake fetch to test Promises
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?.  (gte argc-w 2)  (throw-args '_host_fetch_url' argc-w 2)
+      ?.  (gte argc-w 2)  (throw-args 'fetch_sync' argc-w 2)
       (ding 'QTS_NewString' ctx-u (malloc-cord 'yes hello') ~)
     ::
     ::  +clock-time-get: WASI import to get time
     ::
     ++  clock-time-get
       |=  args=(pole cw)
+      =/  m  (script:lia-sur:wasm (list cw) acc-mold)
       ^-  form:m
       ?>  ?=([[%i32 @] [%i64 @] [%i32 time-u=@] ~] args)
       =,  arr  =,  args
-      ;<  l=(pole lv)   try:m  get-bowl:ext
-      ~!  l
-      ?>  ?=([[%noun owl=*] ~] l)
-      ;<  tor=acc-mold  try:m  get-acc
-      =.  tor  (put-bowl owl.l tor)
-      ;<  ~             try:m  (set-acc tor)
+      :: ;<  l=(pole lv)   try:m  get-bowl:ext
+      :: ?>  ?=([[%noun owl=*] ~] l)
+      :: ;<  tor=acc-mold  try:m  get-acc
+      :: =.  tor  (put-bowl owl.l tor)
+      :: ;<  ~             try:m  (set-acc tor)
       ::
       =/  time  ;;  @da
-        ;<  bol=bowl:rand  mist  owl.l
-        now.bol
+        :: ;<  bol=bowl:rand  mist  owl.l
+        :: now.bol
+        *@da
       ::  WASI time is in ns
       ::
       =/  ntime  (mul 1.000.000 (unm:chrono:userlib time))
@@ -595,6 +701,7 @@
     ::
     ++  qts-host-call-function
       |=  args=(pole cw)
+      =/  m  (script:lia-sur:wasm (list cw) acc-mold)
       ^-  form:m
       ?>  ?=  $:  [%i32 ctx-u=@]
                   [%i32 this-u=@]
@@ -629,13 +736,14 @@
     ::
     ++  emscripten-notify-memory-growth
       |=  *
+      =/  m  (script:lia-sur:wasm (list cw) acc-mold)
       (return:m ~)
     --
 ::
 =/  imports=(import:lia-sur:wasm acc-mold)
-  :-  *acc-mold
+  :-  *acc
   =/  m  (script:lia-sur:wasm (list cw) acc-mold)
-  %-  malt
+  %-  ~(gas by *(map (pair cord cord) $-((list cw) form:m)))
   :~
     ['wasi_snapshot_preview1'^'clock_time_get' clock-time-get]
     ['env'^'qts_host_call_function' qts-host-call-function]
@@ -648,13 +756,23 @@
 |=  code=cord
 =/  m  (strand (each cord (pair cord cord)))
 ^-  form:m
-=/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~ imports]
+;<  bol=bowl:rand  bind:m  get-bowl:sio
+~&  now.bol
+=/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~[~[octs+[0 'hello']] ~] imports]
 =^  [yil=(yield (list lv)) *]  seed  (run:wasm &+(main code) seed hint)
 |-  ^-  form:m
-?:  ?=(%2 -.yil)  (strand-fail:rand %thread-js ~[>'Wasm VM crashed'<])
-?:  ?=(%0 -.yil)  (pure:m (get-result p.yil))
+?-    -.yil
+    %0
+  ~&  shop.seed
+  (pure:m (get-result p.yil))
 ::
-::  %1
-;<  res=(list lv)  bind:m  ((fetch-thread name.yil) args.yil)
-=^  [yil1=(yield (list lv)) *]  seed  (run:wasm |+res seed hint)
-$(yil yil1)
+    %1
+  ~&  name.yil
+  ;<  res=(list lv)  bind:m  ((fetch-thread name.yil) args.yil)
+  ~&  shop.seed
+  =^  [yil1=(yield (list lv)) *]  seed  (run:wasm |+res seed hint)
+  $(yil yil1)
+::
+    %2
+  (strand-fail:rand %thread-js ~['Wasm VM crashed'])
+==
