@@ -64,7 +64,7 @@
       |%
       ::  (~ => [noun+bowl:rand ~])
       ::
-      :: ++  get-bowl  (call-ext:arr %get-bowl ~)
+      ++  get-bowl  (call-ext:arr %get-bowl ~)
       ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
       ::
       ++  get-txt-file
@@ -75,6 +75,11 @@
       ++  set-txt-file
         |=  [pax=path txt=cord]
         (call-ext:arr %set-txt-file noun+pax noun+txt ~)
+      ::  ([noun+hiss ~] => ?(~ [noun+httr ~]))
+      ::
+      ++  fetch-url
+        |=  =hiss:eyre
+        (call-ext:arr %fetch-url noun+hiss ~)
       --
     ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
     ::
@@ -126,6 +131,13 @@
         =/  wan=wain  (to-wain:format txt)
         =/  not=note-arvo  [%c [%info %base %& [prefix^pax %ins %txt !>(wan)]~]]
         (send-raw-card:sio [%pass / %arvo not])
+      ::
+          %fetch-url
+        ::  ([noun+hiss ~] => ?(~ [noun+httr ~]))
+        ::
+        |=  l=(pole lv)
+        ^-  form:m
+        stub
       ==
     --
 ::
@@ -362,14 +374,11 @@
         var _fetch = function(url, options) {
           return new Promise((resolve, reject) => {
             const res = globalThis.fetch_sync(url, options);
-            //console.log("_fetch");
-            //console.log(res);
-            //
             resolve({
-              status: 200,                                      //  res.status,
-              statusText: "OK",                                 //  res.statusText,
-              headers: {"Content-Type": "application/json"},    //  res.headers,
-              ok: true,
+              status: res.status,
+              statusText: res.statusText,
+              headers: res.headers,
+              ok: res.status >= 200 && res.status < 300,
               text: () => Promise.resolve(res),                 //  res.body
               json: () => Promise.resolve(JSON.parse(res)),     //  res.body
             });
@@ -497,6 +506,7 @@
       |=  xap=cord
       |^  ^-  (unit path)
       (rush xap path-rule)
+      ::  path element sans `.`
       ::
       ++  urs-ab-dotless
         %+  cook
@@ -550,7 +560,183 @@
       =+  (get-js-ctx acc)
       ;<  undef-const-u=@  try:m  (call-1 'QTS_GetUndefined' ~)
       (call-1 'QTS_DupValuePointer' ctx-u undef-const-u ~)
+    ::  +load-json: return a JSON noun from QuickJS
     ::
+    ++  load-json
+      |=  ptr-u=@
+      =/  m  (script:lia-sur:wasm json acc-mold)
+      ^-  form:m
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      ::
+      ;<  type-u=@   try:m  (call-1 'QTS_Typeof' ctx-u ptr-u ~)
+      ;<  type=cord  try:m  (get-c-string type-u)
+      ?+    type  ~&(json-unsupported-type+type (return:m ~))
+          ?(%'number' %'bigint')
+        ;<  float=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u ptr-u ~)
+        (return:m n+(rsh 3^2 (scot %rd float)))
+      ::
+          %'string'
+        ;<  str=cord  try:m  (get-js-string ptr-u)
+        (return:m s+str)
+      ::
+          %'boolean'
+        ;<  float=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u ptr-u ~)
+        (return:m b+!=(float 0))
+      ::
+          %'object'
+        ::  %a, %o or ~
+        ::  test for ~
+        ::
+        ;<  null-u=@  try:m  (call-1 'QTS_GetNull' ~)
+        ;<  is-eq=@   try:m  (call-1 'QTS_IsEqual' ctx-u ptr-u null-u 0 ~)
+        ?:  !=(0 is-eq)
+          (return:m ~)
+        ::  test for %a
+        ::
+        =/  name  'length'
+        ;<  len-u=@  try:m
+          %:  ding  'QTS_GetProp'
+            ctx-u
+            ptr-u
+            (ding 'QTS_NewString' ctx-u (malloc-write +((met 3 name)) name) ~)
+            ~
+          ==
+        ::
+        ;<  err=(unit cord)  try:m  (mayb-error len-u)
+        ;<  undef-u=@        try:m  (call-1 'QTS_GetUndefined' ~)
+        ::
+        ;<  is-undef=@  try:m  (call-1 'QTS_IsEqual' ctx-u len-u undef-u 0 ~)
+        ?:  |(?=(^ err) !=(is-undef 0))  ::  obj.length either failed or undefined
+          ::  object
+          ::
+          ;<  out-ptrs-u=@  try:m  (call-1 'malloc' 4 ~)
+          ;<  out-len-u=@   try:m  (call-1 'malloc' 4 ~)
+          ;<  err-u=@       try:m
+            (call-1 'QTS_GetOwnPropertyNames' ctx-u out-ptrs-u out-len-u ptr-u 1 ~)  ::  JS_GPN_STRING_MASK
+          ::
+          ?:  !=(err-u 0)
+            ;<  str=cord  try:m  (get-js-string err-u)
+            ~&('GetOwnPropertyNames error'^str (return:m ~))
+          ::
+          ;<  len-octs=octs  try:m  (memread out-len-u 4)
+          =/  len-w=@  q.len-octs
+          ;<  arr-octs=octs  try:m  (memread out-ptrs-u 4)
+          =/  arr-u=@  q.arr-octs
+          =|  pairs=(list (pair @t json))
+          |-  ^-  form:m
+          ?:  =(len-w 0)  (return:m o+(molt pairs))
+          =/  idx=@  (dec len-w)
+          ;<  nam-val-octs=octs  try:m  (memread (add arr-u (mul 4 idx)) 4)
+          =/  nam-val-u=@  q.nam-val-octs
+          ;<  name=cord    try:m  (get-js-string nam-val-u)
+          ;<  val-u=@      try:m
+            %:  call-1  'QTS_GetProp'
+              ctx-u
+              ptr-u
+              nam-val-u
+              ~
+            ==
+          ::
+          ;<  jon-child=json  try:m  (load-json val-u)
+          $(len-w (dec len-w), pairs [[name jon-child] pairs])
+        ::  array
+        ::
+        ;<  len-d=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u len-u ~)
+        =/  len=@  (abs:si (need (toi:rd len-d)))
+        =|  vals=(list json)
+        |-  ^-  form:m
+        ?:  =(len 0)  (return:m a+vals)
+        =/  idx=@  (dec len)
+        ;<  val-u=@  try:m
+          %:  ding  'QTS_GetProp'
+            ctx-u
+            ptr-u
+            (call-1 'QTS_NewFloat64' ctx-u (sun:rd idx) ~)
+            ~
+          ==
+        ::
+        ;<  jon-child=json  try:m  (load-json val-u)
+        $(len (dec len), vals [jon-child vals])
+      ==
+    ::  +store-json-name: create a global object from JSON noun
+    ::
+    ++  store-json-name
+      |=  [name=cord =json]
+      =/  m  (script:lia-sur:wasm ,~ acc-mold)
+      ^-  form:m
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      ::
+      ;<  undef-u=@  try:m  (call-1 'QTS_GetUndefined' ~)
+      ::
+      ;<  *  try:m
+        %:  ring  'QTS_DefineProp'
+          ctx-u
+          (call-1 'QTS_GetGlobalObject' ctx-u ~)
+          (ding 'QTS_NewString' ctx-u (malloc-write +((met 3 name)) name) ~)
+          (store-json json)
+          undef-u  ::  get
+          undef-u  ::  set
+          1        ::  configurable
+          1        ::  enumerable
+          1        ::  has_value
+          ~
+        ==
+      ::
+      (return:m ~)
+    ::  +store-json: load JSON noun and return JSValue pointer to it
+    ::
+    ++  store-json
+      |=  jon=json
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ;<  acc=acc-mold  try:m  get-acc
+      =+  (get-js-ctx acc)
+      ::
+      =/  jon-cod=cord  (en:json:html jon)
+      ::  duplicate backslashes to escape them in JSON.parse
+      ::
+      =.  jon-cod
+        %+  rap  3
+        %+  rash  jon-cod
+        ^~  %-  star
+        ;~  pose
+          (cold '\\\\' bas)
+          next
+        ==
+      ::
+      =/  code=cord
+        (rap 3 'JSON.parse(\'' jon-cod '\')' ~)
+      ::
+      ;<  res-u=@  try:m
+        %:  ding  'QTS_Eval'
+          ctx-u
+          (malloc-write +((met 3 code)) code)
+          (met 3 code)
+          fil-u
+          1
+          0
+          ~
+        ==
+      ::
+      ;<  err=(unit cord)  try:m  (mayb-error res-u)
+      ?^  err  ~|  u.err  (return:m res-u)
+      (return:m res-u)
+    ::  +parse-url: friendly url parsing
+    ::
+    ++  parse-url
+      |=  lur=cord
+      ^-  (unit purl:eyre)
+      stub
+    ::
+    ++  parse-methods
+      |=  jon=json
+      ^-  (unit moth:eyre)
+      stub
     --
 ::
 ::  Wasm & JS imports
@@ -573,9 +759,23 @@
       ^-  form:m
       %-  throw-error
       %:  rap  3
-        'Invalid path: "'  xap  
+        'Invalid path: "'  xap
         ~
       ==
+    ::
+    ++  throw-url
+      |=  lur=cord
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      %-  throw-error
+      %:  rap  3
+        'Invalid url: "'  lur
+        ~
+      ==
+    ::
+    ++  throw-methods
+      |=  *
+      (throw-error 'Failed parsing `fetch` methods')
     :: +require: NodeJS-like import interface
     ::
     ++  require
@@ -666,13 +866,31 @@
       ;<  *         try:m  (set-txt-file:ext u.pax txt)
       return-undefined
     ::
-    ++  host-fetch-url  ::  XX fake fetch to test Promises
+    ++  host-fetch-url
       |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
       ?.  (gte argc-w 2)  (throw-args 'fetch_sync' argc-w 2)
-      (ding 'QTS_NewString' ctx-u (malloc-cord 'yes hello') ~)
+      ;<  lur=cord  try:m  (get-js-string argv-u)
+      ;<  tom=json  try:m  (load-json (add argv-u 8))
+      ?~  purl=(parse-url lur)  (throw-url lur)
+      ?~  moth=(parse-methods tom)  (throw-methods tom)
+      ;<  res=(pole lv)  try:m  (fetch-url:ext u.purl u.moth)
+      ?>  ?=([[%noun p=*] ~] res)
+      =+  ;;(=httr:eyre p.res)
+      =/  jon=json
+        =,  enjs:format
+        %-  pairs
+        =-  ?~(r.httr - [body+s+q.u.r.httr -])
+        :~  status+(numb p.httr)
+            :-  'statusText'
+            `json`s+(crip "Code {<p.httr>}")  ::  XX proper statusText
+        ::
+            headers+`json`(pairs (turn q.httr |=([p=@t q=@t] [p s+q])))
+        ==
+      ::
+      (store-json jon)
     ::
     ::  +clock-time-get: WASI import to get time
     ::
@@ -682,16 +900,15 @@
       ^-  form:m
       ?>  ?=([[%i32 @] [%i64 @] [%i32 time-u=@] ~] args)
       =,  arr  =,  args
-      :: ;<  l=(pole lv)   try:m  get-bowl:ext
-      :: ?>  ?=([[%noun owl=*] ~] l)
-      :: ;<  tor=acc-mold  try:m  get-acc
-      :: =.  tor  (put-bowl owl.l tor)
-      :: ;<  ~             try:m  (set-acc tor)
+      ;<  l=(pole lv)   try:m  get-bowl:ext
+      ?>  ?=([[%noun owl=*] ~] l)
+      ;<  tor=acc-mold  try:m  get-acc
+      =.  tor  (put-bowl owl.l tor)
+      ;<  ~             try:m  (set-acc tor)
       ::
       =/  time  ;;  @da
-        :: ;<  bol=bowl:rand  mist  owl.l
-        :: now.bol
-        *@da
+        ;<  bol=bowl:rand  mist  owl.l
+        now.bol
       ::  WASI time is in ns
       ::
       =/  ntime  (mul 1.000.000 (unm:chrono:userlib time))
@@ -756,20 +973,15 @@
 |=  code=cord
 =/  m  (strand (each cord (pair cord cord)))
 ^-  form:m
-;<  bol=bowl:rand  bind:m  get-bowl:sio
-~&  now.bol
-=/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~[~[octs+[0 'hello']] ~] imports]
+=/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~ imports]
 =^  [yil=(yield (list lv)) *]  seed  (run:wasm &+(main code) seed hint)
 |-  ^-  form:m
 ?-    -.yil
     %0
-  ~&  shop.seed
   (pure:m (get-result p.yil))
 ::
     %1
-  ~&  name.yil
   ;<  res=(list lv)  bind:m  ((fetch-thread name.yil) args.yil)
-  ~&  shop.seed
   =^  [yil1=(yield (list lv)) *]  seed  (run:wasm |+res seed hint)
   $(yil yil1)
 ::

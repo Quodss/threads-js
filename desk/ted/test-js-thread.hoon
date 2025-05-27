@@ -13,10 +13,11 @@
 '''
 const ub = require("urbit_thread");
 module.exports = () => {
-  console.log('store the file')
-  ub.store_txt_file('foo/bax.txt', 'Test');
-  console.log('read the file')
-  let txt = ub.load_txt_file('foo/bax.txt');
+  console.log('begin script');
+  console.log('store the file');
+  ub.store_txt_file('foo/test.txt', 'Test file content overwrite #4');
+  console.log('read the file');
+  let txt = ub.load_txt_file('foo/test.txt');
   return txt;
 };
 '''
