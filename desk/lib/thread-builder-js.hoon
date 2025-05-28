@@ -14,36 +14,12 @@
 ::  Types, interfaces
 ::
 =>  |%
-    ::  typeless identity monad
-    ::  even though it's typeless we still need the mold of the result
-    ::  due to contravariant nesting rules of $-
-    ::
-    ++  mist
-      |*  m=mold
-      |=  [a=* b=$-(m *)]
-      (slum b a)
-    ::
-    ++  get-bowl
-      |=  tor=*
-      ;;  (unit *)
-      ;<  =acc  mist  tor
-      ^-  (unit bowl:rand)
-      bowl.acc
-    ::
-    ++  put-bowl
-      |=  [owl=* tor=*]
-      ^-  *
-      ;<  [bol=bowl:rand =acc]  mist  [owl tor]
-      ^-  ^acc
-      acc(bowl `bol)
-    ::
     ++  get-js-ctx
-      |=  tor=*
-      ;;  [run-u=@ ctx-u=@ fil-u=@]
-      ;<  =acc  mist  tor
-      ^-  [@ @ @]
-      [run-u ctx-u fil-u]:acc
-    ::  actual accumulator type of a raw noun to be stored in lia accumulator
+      |=  tor=vase
+      ^-  [run-u=@ ctx-u=@ fil-u=@]
+      =>  !<(acc tor)
+      [run-u ctx-u fil-u]
+    ::  actual accumulator type of a vase noun to be stored in lia accumulator
     ::
     +$  acc
       $:  run-u=@
@@ -53,7 +29,7 @@
           bowl=(unit bowl:rand)
       ==
     ::
-    +$  acc-mold  *
+    +$  acc-mold  vase
     ++  arr  (arrows:wasm acc-mold)
     --
 ::
@@ -62,24 +38,67 @@
 =>  |%
     ++  ext
       |%
-      ::  (~ => [noun+bowl:rand ~])
+      ::  Arvo API
+      ::
+      ::  (~ => [vase+bowl:rand ~])
       ::
       ++  get-bowl  (call-ext:arr %get-bowl ~)
-      ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
+      ::  ([vase+path ~] => ?(~ [octs+[contents=octs] ~]))
       ::
       ++  get-txt-file
         |=  pax=path
-        (call-ext:arr %get-txt-file noun+pax ~)
-      ::  ([noun+path noun+cord ~] => ~)
+        (call-ext:arr %get-txt-file vase+!>(pax) ~)
+      ::  ([vase+path vase+cord ~] => ~)
       ::
       ++  set-txt-file
         |=  [pax=path txt=cord]
-        (call-ext:arr %set-txt-file noun+pax noun+txt ~)
-      ::  ([noun+hiss ~] => ?(~ [noun+httr ~]))
+        (call-ext:arr %set-txt-file vase+!>(pax) vase+!>(txt) ~)
+      ::  ([vase+hiss ~] => ?(~ [vase+httr ~]))
       ::
       ++  fetch-url
         |=  =hiss:eyre
-        (call-ext:arr %fetch-url noun+hiss ~)
+        (call-ext:arr %fetch-url vase+!>(hiss) ~)
+      ::  Tlon Messenger API
+      ::
+      ++  get-groups
+        stub
+      ::
+      ++  get-channels
+        stub
+      ::
+      ++  get-chat-messages
+        stub
+      ::
+      ++  get-dm-messages
+        stub
+      ::
+      ++  get-members
+        stub
+      ::
+      ++  get-roles
+        stub
+      ::
+      ++  add-user
+        stub
+      ::
+      ++  kick-user
+        stub
+      ::
+      ++  give-role
+        stub
+      ::
+      ++  remove-role
+        stub
+      ::
+      ++  post-chat
+        stub
+      ::
+      ++  send-dm
+        stub
+      ::
+      ++  post-reply
+        stub
+      ::
       --
     ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
     ::
@@ -89,22 +108,22 @@
       ^-  $-((list lv) (strand-form (list lv)))
       ?+    name  ~|(thread-not-defined+name !!)
           %get-bowl
-        ::  (~ => [noun+bowl:rand ~])
+        ::  (~ => [vase+bowl:rand ~])
         ::  does not need the argument
         ::
         |=  *
         ^-  form:m
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        (pure:m noun+bol ~)
+        (pure:m vase+!>(bol) ~)
       ::
           %get-txt-file
-        ::  ([noun+path ~] => ?(~ [octs+contents=octs ~]))
+        ::  ([vase+path ~] => ?(~ [octs+contents=octs ~]))
         ::
         |=  l=(pole lv)
         ^-  form:m
         =*  prefix  %scripts
-        ?>  ?=([[%noun p=*] ~] l)
-        =+  ;;(pax=path p.l)
+        ?>  ?=([[%vase p=*] ~] l)
+        =+  !<(pax=path p.l)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
         =/  bek=beak  [our %base %da now]:bol
         ;<  =riot:clay  bind:m
@@ -121,23 +140,27 @@
         (pure:m octs+[(met 3 str) str] ~)
       ::
           %set-txt-file
-        ::  ([noun+path noun+cord ~] => ~)
+        ::  ([vase+path vase+cord ~] => ~)
         ::
         |=  l=(pole lv)
         ^-  form:m
         =*  prefix  %scripts
-        ?>  ?=([[%noun p=*] [%noun t=*] ~] l)
-        =+  ;;([pax=path txt=cord] [p.l t.l])
+        ?>  ?=([[%vase p=*] [%vase t=*] ~] l)
+        =+  [!<(pax=path p.l) !<(txt=cord t.l)]
         =/  wan=wain  (to-wain:format txt)
         =/  not=note-arvo  [%c [%info %base %& [prefix^pax %ins %txt !>(wan)]~]]
         (send-raw-card:sio [%pass / %arvo not])
       ::
           %fetch-url
-        ::  ([noun+hiss ~] => ?(~ [noun+httr ~]))
+        ::  ([vase+hiss ~] => ?(~ [vase+httr ~]))
         ::
         |=  l=(pole lv)
         ^-  form:m
-        stub
+        ?>  ?=([[%vase p=*] ~] l)
+        =+  !<(=hiss:eyre p.l)
+        ;<  sig=(unit httr:eyre)  bind:m  (hiss-request:sio hiss)
+        ?~  sig  (pure:m ~)
+        (pure:m vase+!>(u.sig) ~)
       ==
     --
 ::
@@ -306,7 +329,7 @@
       ;<  fil-u=@    try:m  (malloc-cord filename)
       =|  tor=acc
       =.  tor  tor(run-u run-u, ctx-u ctx-u, fil-u fil-u)
-      ;<  ~          try:m  (set-acc tor)
+      ;<  ~          try:m  (set-acc !>(tor))
       ;<  global-this-u=@  try:m  (call-1 'QTS_GetGlobalObject' ctx-u ~)
       ;<  undef-u=@        try:m  (call-1 'QTS_GetUndefined' ~)
       ;<  err=(unit cord)  try:m  (register-function 'require' 0 global-this-u)
@@ -726,17 +749,75 @@
       ;<  err=(unit cord)  try:m  (mayb-error res-u)
       ?^  err  ~|  u.err  (return:m res-u)
       (return:m res-u)
-    ::  +parse-url: friendly url parsing
+    ::  +parse-url: friendly url parsing. Falls back to https
     ::
     ++  parse-url
       |=  lur=cord
       ^-  (unit purl:eyre)
-      stub
+      ?^  pur=(de-purl:html lur)  pur
+      (de-purl:html (rap 3 'https://' lur ~))
+    ::  +parse-methods: parse JSON to $moth:eyre
     ::
     ++  parse-methods
-      |=  jon=json
+      |=  obj=(map @t json)
       ^-  (unit moth:eyre)
-      stub
+      =/  met=(unit meth:eyre)
+        ?~  tod=(~(get by obj) %method)  `%get
+        ::  handle null value
+        ::
+        ?~  u.tod  ~
+        ?.  ?=(%s -.u.tod)  ~
+        ?+  p.u.tod  ~
+          %'CONNECT'  `%conn
+          %'DELETE'   `%delt
+          %'GET'      `%get
+          %'HEAD'     `%head
+          %'OPTIONS'  `%opts
+          %'POST'     `%post
+          %'PUT'      `%put
+          %'TRACE'    `%trac
+        ==
+      ::
+      ?~  met  ~
+      =/  mat=(unit math:eyre)
+        ?~  tod=(~(get by obj) %headers)  `~
+        ?~  u.tod  ~
+        ::  array of key-value pairs
+        ::
+        ?:  ?=(%a -.u.tod)
+          =/  l=(unit (list [@t @t]))
+            |-  ^-  (unit (list [@t @t]))
+            ?~  p.u.tod  `~
+            ?.  ?=([%a [[%s *] [%s *] ~]] i.p.u.tod)  ~
+            =/  tel=(unit (list [@t @t]))  $(p.u.tod t.p.u.tod)
+            ?~  tel  ~
+            =*  arr  p.i.p.u.tod
+            `[[p.i.arr p.i.t.arr] u.tel]
+          ::
+          ?~  l  ~
+          :-  ~  =<  q
+          %^  spin  u.l  *math:eyre
+          |=  [[k=@t v=@t] j=(jar @t @t)]
+          ^-  [* math:eyre]
+          `(~(add ja j) k v)
+        ::  plain object
+        ::
+        ?.  ?=(%o -.u.tod)  ~
+        %-  ~(rep by p.u.tod)
+        |:  [[k=*@t v=*json] acc=`(unit math:eyre)`[~ *math:eyre]]
+        ^-  (unit math:eyre)
+        ?~  acc  ~
+        ?.  ?=([%s *] v)  ~
+        acc(u (~(put by u.acc) k ~[p.v]))
+      ::
+      ?~  mat  ~
+      =/  bod=(unit (unit octs))
+        ?~  dob=(~(get by obj) %body)  `~
+        ?.  ?=([%s *] u.dob)  ~
+        ``(tem p.u.dob)
+      ::
+      ?~  bod  ~
+      `[u.met u.mat u.bod]
     --
 ::
 ::  Wasm & JS imports
@@ -769,7 +850,7 @@
       ^-  form:m
       %-  throw-error
       %:  rap  3
-        'Invalid url: "'  lur
+        'Invalid URL: "'  lur
         ~
       ==
     ::
@@ -872,13 +953,28 @@
       ^-  form:m
       =,  arr
       ?.  (gte argc-w 2)  (throw-args 'fetch_sync' argc-w 2)
-      ;<  lur=cord  try:m  (get-js-string argv-u)
+      ::  (either a string or URL object)
+      ::
+      ;<  url-jon=json  try:m  (load-json argv-u)
+      =/  lur=(unit @t)
+        ?~  url-jon  ~
+        ?+    -.url-jon  ~
+            %s  `p.url-jon
+            %o
+          ?~  href=(~(get by p.url-jon) %href)  ~
+          ?.  ?=(%s -.u.href)  ~
+          `p.u.href
+        ==
+      ::
+      ?~  lur   (throw-error 'Unrecognized type in fetch_sync')
       ;<  tom=json  try:m  (load-json (add argv-u 8))
-      ?~  purl=(parse-url lur)  (throw-url lur)
-      ?~  moth=(parse-methods tom)  (throw-methods tom)
+      ?~  purl=(parse-url u.lur)  (throw-url u.lur)
+      ?.  ?=([%o *] tom)  (throw-methods tom)
+      ?~  moth=(parse-methods p.tom)  (throw-methods tom)
       ;<  res=(pole lv)  try:m  (fetch-url:ext u.purl u.moth)
-      ?>  ?=([[%noun p=*] ~] res)
-      =+  ;;(=httr:eyre p.res)
+      ?~  res  (throw-error (rap 3 'Failed http request: ' u.lur ~))
+      ?>  ?=([[%vase p=*] ~] res)
+      =+  !<(=httr:eyre p.res)
       =/  jon=json
         =,  enjs:format
         %-  pairs
@@ -901,14 +997,14 @@
       ?>  ?=([[%i32 @] [%i64 @] [%i32 time-u=@] ~] args)
       =,  arr  =,  args
       ;<  l=(pole lv)   try:m  get-bowl:ext
-      ?>  ?=([[%noun owl=*] ~] l)
+      ?>  ?=([[%vase owl=*] ~] l)
+      =+  !<(bol=bowl:rand owl.l)
       ;<  tor=acc-mold  try:m  get-acc
-      =.  tor  (put-bowl owl.l tor)
-      ;<  ~             try:m  (set-acc tor)
+      =+  !<(=acc tor)
+      =.  acc  acc(bowl `bol)
+      ;<  ~             try:m  (set-acc !>(acc))
       ::
-      =/  time  ;;  @da
-        ;<  bol=bowl:rand  mist  owl.l
-        now.bol
+      =/  time=@da  now.bol
       ::  WASI time is in ns
       ::
       =/  ntime  (mul 1.000.000 (unm:chrono:userlib time))
@@ -939,7 +1035,7 @@
           %1  console-log
           %2  console-error
           %3  console-warn
-          %4  console-log
+          %4  console-log  ::  console_info alias
           %5  load-txt-file
           %6  store-txt-file
           %7  host-fetch-url
@@ -958,7 +1054,7 @@
     --
 ::
 =/  imports=(import:lia-sur:wasm acc-mold)
-  :-  *acc
+  :-  !>(*acc)
   =/  m  (script:lia-sur:wasm (list cw) acc-mold)
   %-  ~(gas by *(map (pair cord cord) $-((list cw) form:m)))
   :~
