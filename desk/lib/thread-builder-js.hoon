@@ -5,6 +5,7 @@
 /+  sio=strandio
 /+  wasm=wasm-lia
 /+  mp=mop-extensions
+/+  cj=channel-json
 /*  quick-js-wasm  %wasm  /quick-js-emcc/wasm
 ::
 =,  strand=strand:spider
@@ -68,8 +69,8 @@
         (call-ext:arr %get-chan-messages vase+!>(nest) vase+!>(n) ~)
       ::  
       ++  get-dm-messages
-        |=  [=nest:channels-sur n=@]
-        (call-ext:arr %get-dm-messages vase+!>(nest) vase+!>(n) ~)
+        |=  [her=@p n=@]
+        (call-ext:arr %get-dm-messages vase+!>(her) vase+!>(n) ~)
       ::
       ++  get-club-messages
         |=  [zem=id:club:chat-sur n=@]
@@ -967,9 +968,7 @@
         %:  ring  'QTS_DefineProp'
           ctx-u
           global-this-u
-        ::
           console-str-u
-        ::
           (call-1 'QTS_NewObject' ctx-u ~)                ::  init value
           undef-u                                         ::  getter
           undef-u                                         ::  setter
@@ -1110,6 +1109,50 @@
       ;<  *  try:m  (register-function 'store_txt_file' 6 obj-u)
       ::
       :: ;<  *  try:m  (register-function 'foo' 1 obj-u)
+      ::
+      ::  add urbit.tlon object for Tlon API
+      ::
+      ;<  tlon-str-u=@  try:m
+        %:  ding  'QTS_NewString'
+          ctx-u
+          (malloc-cord 'tlon')
+          ~
+        ==
+      ::
+      ;<  *  try:m
+        %:  ring  'QTS_DefineProp'
+          ctx-u
+          obj-u
+          tlon-str-u
+          (call-1 'QTS_NewObject' ctx-u ~)                ::  init value
+          undef-u                                         ::  getter
+          undef-u                                         ::  setter
+          1                                               ::  configurable
+          1                                               ::  enumerable
+          1                                               ::  has value
+          ~
+        ==
+      ::
+      ;<  tlon-u=@  try:m
+        (call-1 'QTS_GetProp' ctx-u obj-u tlon-str-u ~)
+      ::
+      =*  reg  register-function
+      ;<  *  try:m  %:  reg  'get_channels'           8   tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_channel_messages'   9   tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_dm_messages'        10  tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_dm_replies'         11  tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_channel_replies'    12  tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_channel_members'    13  tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_roles'              14  tlon-u  ==
+      ;<  *  try:m  %:  reg  'invite_user_channel'    15  tlon-u  ==
+      ;<  *  try:m  %:  reg  'invite_user_groupchat'  16  tlon-u  ==
+      ;<  *  try:m  %:  reg  'kick_user_channel'      17  tlon-u  ==
+      ;<  *  try:m  %:  reg  'give_role'              18  tlon-u  ==
+      ;<  *  try:m  %:  reg  'remove_role'            19  tlon-u  ==
+      ;<  *  try:m  %:  reg  'post_channel'           20  tlon-u  ==
+      ;<  *  try:m  %:  reg  'send_dm'                21  tlon-u  ==
+      ;<  *  try:m  %:  reg  'reply_channel'          22  tlon-u  ==
+      ;<  *  try:m  %:  reg  'get_groupchat_members'  23  tlon-u  ==
       ::
       (return:m obj-u)
     ::  +throw-error: returns a pointer to JSException
@@ -1424,8 +1467,6 @@
 =>  |%
     ++  throw-args
       |=  [name=cord got=@ need=@]
-      =/  m  (script:lia-sur:wasm @ acc-mold)
-      ^-  form:m
       %-  throw-error
       %:  rap  3
         'Not enough arguments for function "'  name  '", got '
@@ -1435,8 +1476,6 @@
     ::
     ++  throw-path
       |=  xap=cord
-      =/  m  (script:lia-sur:wasm @ acc-mold)
-      ^-  form:m
       %-  throw-error
       %:  rap  3
         'Invalid path: "'  xap
@@ -1445,8 +1484,6 @@
     ::
     ++  throw-url
       |=  lur=cord
-      =/  m  (script:lia-sur:wasm @ acc-mold)
-      ^-  form:m
       %-  throw-error
       %:  rap  3
         'Invalid URL: "'  lur
@@ -1456,6 +1493,14 @@
     ++  throw-methods
       |=  *
       (throw-error 'Failed parsing `fetch` methods')
+    ::
+    ++  throw-integer
+      |=  float=@rd
+      %-  throw-error
+      %:  rap  3
+        'Type error: '  (rsh [3 2] (scot %rd float))  ' cannot be an integer'
+        ~
+      ==
     :: +require: NodeJS-like import interface
     ::
     ++  require
@@ -1609,6 +1654,396 @@
       =/  ntime  (mul 1.000.000 (unm:chrono:userlib time))
       ;<  ~  try:m  (memwrite time-u 8 ntime)
       (return:m i32+0 ~)
+    ::  TM API functions linked to JS environment
+    ::
+    ++  tm-js
+      ::  Nest: string
+      ::  Story: (definition is large, refer to gist Quodss/hooks-js.md)
+      ::  Memo: {content: Story, author: string, sent: number}
+      ::
+      |%
+      ++  enjs
+        =,  enjs:format
+        |%
+        ::  replaces ++ship:enjs:format and is different from Tlon def
+        ::
+        ++  ship
+          |=  a=@p
+          ^-  json
+          s+(scot %p a)
+        ::  time is used as a unique key, we need to preserve it
+        ::
+        ++  time
+          |=  t=@
+          ^-  json
+          s+(rap 3 +>:(scow %ui t))
+        ::
+        ++  memo
+          |=  m=memo:channels-sur
+          ^-  json
+          %-  pairs
+          :~  content/(story:enjs:cj content.m)
+              author/(ship author.m)
+              sent/(time sent.m)
+          ==
+        --
+      ::
+      ++  dejs
+        =,  dejs:format
+        |%
+        ++  ship
+          |=  jon=json
+          ^-  @p
+          ?>  ?=(%s -.jon)
+          (slav %p p.jon)
+        ::
+        ++  memo
+          ^-  $-(json memo:channels-sur)
+          %-  ot
+          :~  content+story:dejs:cj
+              author+ship
+              sent+di
+          ==
+        ::
+        ++  time
+          ^-  $-(json @da)
+          (su dim:ag)
+        --
+      ::
+      ++  rule-ship-club
+        %+  cook  |=((each @p id:club:chat-sur) +<)
+        ;~  pose
+          (stag %& ;~(pfix sig fed:ag))
+          (stag %| sym)
+        ==
+      ::
+      ::  () => Nest[]
+      ::
+      ++  get-channels
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ;<  res=(pole lv)  try:m  get-channels:ext
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(nests=(list nest:channels-sur) p.res)
+        (store-json a+(turn nests nest:enjs:cj))
+      ::  (Nest, number) => {key: number, message: Memo}[]
+      ::
+      ++  get-channel-messages
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'get_channel_messages' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  acc=acc-mold  try:m  get-acc
+        =+  (get-js-ctx acc)
+        ::
+        ;<  float=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u (add 8 argv-u) ~)
+        ?~  n=(bind (toi:rd float) abs:si)  (throw-integer float)
+        ;<  res=(pole lv)  try:m  (get-chan-messages:ext u.nest u.n)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(l=(list [time memo:channels-sur]) p.res)
+        %-  store-json
+        :-  %a
+        %+  turn  l
+        |=  [t=time m=memo:channels-sur]
+        ^-  json
+        =,  enjs:format
+        %-  pairs
+        :~  key+(time t)
+            message+(memo:enjs m)
+        ==
+      ::  (string, number) => {key: number, message: Memo}[]
+      ::  input string is either @p or club id
+      ::
+      ++  get-dm-messages
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'get_dm_messages' argc-w 2)
+        ;<  dm-id-str=cord  try:m  (get-js-string argv-u)
+        ?~  who=(mole |.((rash dm-id-str rule-ship-club)))  ::  XX remove inner parens and parser spins forever, why???
+          %-  throw-error
+          (rap 3 'SyntaxError: ' dm-id-str ' is not a valid DM id' ~)
+        ;<  float=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u (add 8 argv-u) ~)
+        ?~  n=(bind (toi:rd float) abs:si)  (throw-integer float)
+        ;<  res=(pole lv)  try:m
+          ?:  ?=(%& -.u.who)
+            (get-dm-messages:ext p.u.who u.n)
+          (get-club-messages:ext p.u.who u.n)
+        ::
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(l=(list [time memo:channels-sur]) p.res)
+        %-  store-json
+        :-  %a
+        %+  turn  l
+        |=  [t=time m=memo:channels-sur]
+        ^-  json
+        =,  enjs:format
+        %-  pairs
+        :~  key+(time t)
+            message+(memo:enjs m)
+        ==
+      ::  (string, key=number) => Memo[]
+      ::  input string is either @p or club id
+      ::
+      ++  get-dm-replies
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'get_dm_replies' argc-w 2)
+        ;<  dm-id-str=cord  try:m  (get-js-string argv-u)
+        ?~  who=(mole |.((rash dm-id-str rule-ship-club)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' dm-id-str ' is not a valid DM id' ~)
+        ;<  key-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  key=(rush key-str dim:ag)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' key-str ' is not a valid message identifier' ~)
+        ;<  res=(pole lv)  try:m
+          ?:  ?=(%& -.u.who)
+            (get-dm-replies:ext p.u.who u.key)
+          (get-club-replies:ext p.u.who u.key)
+        ::
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(l=(list memo:channels-sur) p.res)
+        (store-json a+(turn l memo:enjs))
+      ::  (Nest, key=number) => Memo[]
+      ::
+      ++  get-channel-replies
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'get_channel_replies' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  key-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  key=(rush key-str dim:ag)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' key-str ' is not a valid message identifier' ~)
+        ;<  res=(pole lv)  try:m  (get-chan-replies:ext u.nest u.key)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(l=(list memo:channels-sur) p.res)
+        (store-json a+(turn l memo:enjs))
+      ::  (Nest) => string[]
+      ::
+      ++  get-channel-members
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 1)  (throw-args 'get_channel_members' argc-w 1)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  res=(pole lv)  try:m  (get-chan-members:ext u.nest)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(s=(set @p) p.res)
+        (store-json a+(turn ~(tap in s) ship:enjs))
+      ::  (Nest, ship=string) => string[]
+      ::
+      ++  get-roles
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'get_roles' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  res=(pole lv)  try:m  (get-roles:ext u.nest u.ship)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(s=(set @tas) p.res)
+        (store-json a+(turn ~(tap in s) (lead %s)))
+      ::  (Nest, ship=string) => ()
+      ::
+      ++  invite-user-channel
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'invite_user_channel' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  *  try:m  (add-user-chan:ext u.nest u.ship)
+        return-undefined
+      ::  (id=string ship=string) => ()
+      ::
+      ++  invite-user-groupchat
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'invite_user_groupchat' argc-w 2)
+        ;<  id-str=cord  try:m  (get-js-string argv-u)
+        ?~  id=(rush id-str sym)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' id-str ' is not a valid groupchat ID' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  *  try:m  (add-user-club:ext u.id u.ship)
+        return-undefined
+      ::  (Nest ship=string) => ()
+      ::
+      ++  kick-user-channel
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'kick_user_channel' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  *  try:m  (kick-user-chan:ext u.nest u.ship)
+        return-undefined
+      ::  (Nest ship=string role=string) => ()
+      ::
+      ++  give-role
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 3)  (throw-args 'give_role' argc-w 3)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  role-str=cord  try:m  (get-js-string (add 16 argv-u))
+        ?~  role=(slaw %tas role-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' role-str ' is not a valid role' ~)
+        ;<  *  try:m  (give-role:ext u.nest u.ship u.role)
+        return-undefined
+      ::  (Nest ship=string role=string) => ()
+      ::
+      ++  remove-role
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 3)  (throw-args 'remove_role' argc-w 3)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  ship-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  ship=(slaw %p ship-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' ship-str ' is not a valid ship' ~)
+        ;<  role-str=cord  try:m  (get-js-string (add 16 argv-u))
+        ?~  role=(slaw %tas role-str)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' role-str ' is not a valid role' ~)
+        ;<  *  try:m  (remove-role:ext u.nest u.ship u.role)
+        return-undefined
+      ::  (Nest, post=string) => ()  XX more complex stories? markdown-esque parsing?
+      ::
+      ++  post-channel
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'post_channel' argc-w 2)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  story-str=cord  try:m  (get-js-string (add 8 argv-u))
+        =/  =story:channels-sur  [inline+[story-str]~]~
+        ;<  *  try:m  (post-chan:ext u.nest story)
+        return-undefined
+      ::  (string, post=string) => ()
+      ::  input string is either @p or club id
+      ::
+      ++  send-dm
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 2)  (throw-args 'send_dm' argc-w 2)
+        ;<  dm-id-str=cord  try:m  (get-js-string argv-u)
+        ?~  who=(mole |.((rash dm-id-str rule-ship-club)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' dm-id-str ' is not a valid DM id' ~)
+        ;<  story-str=cord  try:m  (get-js-string (add 8 argv-u))
+        =/  =story:channels-sur  [inline+[story-str]~]~
+        ;<  *  try:m
+          ?-  -.u.who
+            %&  (send-dm:ext p.u.who story)
+            %|  (send-club:ext p.u.who story)
+          ==
+        ::
+        return-undefined
+      ::  (Nest, key=string, post=string) => ()
+      ::
+      ++  reply-channel
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 3)  (throw-args 'post_reply' argc-w 3)
+        ;<  nest-str=cord  try:m  (get-js-string argv-u)
+        ?~  nest=(mole |.((rash nest-str nest-rule:dejs:cj)))
+          %-  throw-error
+          (rap 3 'SyntaxError: ' nest-str ' is not a valid Nest' ~)
+        ;<  key-str=cord  try:m  (get-js-string (add 8 argv-u))
+        ?~  key=(rush key-str dim:ag)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' key-str ' is not a valid message identifier' ~)
+        ;<  story-str=cord  try:m  (get-js-string (add 16 argv-u))
+        =/  =story:channels-sur  [inline+[story-str]~]~
+        ;<  *  try:m  (post-reply:ext u.nest u.key story)
+        return-undefined
+      ::  (id=string) => string[]
+      ::
+      ++  get-club-members
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?.  (gte argc-w 1)  (throw-args 'get_groupchat_members' argc-w 1)
+        ;<  id-str=cord  try:m  (get-js-string argv-u)
+        ?~  id=(rush id-str sym)
+          %-  throw-error
+          (rap 3 'SyntaxError: ' id-str ' is not a valid groupchat ID' ~)
+        ;<  res=(pole lv)  try:m  (get-club-members:ext u.id)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(s=(set @p) p.res)
+        (store-json a+(turn ~(tap in s) ship:enjs))
+      --
     ::  +qts-host-call-function: Wasm import to resolve JS imports
     ::
     ++  qts-host-call-function
@@ -1630,14 +2065,30 @@
         ?+  magic-w.args  !!
         ::  put JS imports here
         ::
-          %0  require
-          %1  console-log
-          %2  console-error
-          %3  console-warn
-          %4  console-log  ::  console_info alias
-          %5  load-txt-file
-          %6  store-txt-file
-          %7  host-fetch-url
+          %0   require
+          %1   console-log
+          %2   console-error
+          %3   console-warn
+          %4   console-log  ::  console_info alias
+          %5   load-txt-file
+          %6   store-txt-file
+          %7   host-fetch-url
+          %8   get-channels:tm-js
+          %9   get-channel-messages:tm-js
+          %10  get-dm-messages:tm-js
+          %11  get-dm-replies:tm-js
+          %12  get-channel-replies:tm-js
+          %13  get-channel-members:tm-js
+          %14  get-roles:tm-js
+          %15  invite-user-channel:tm-js
+          %16  invite-user-groupchat:tm-js
+          %17  kick-user-channel:tm-js
+          %18  give-role:tm-js
+          %19  remove-role:tm-js
+          %20  post-channel:tm-js
+          %21  send-dm:tm-js
+          %22  reply-channel:tm-js
+          %23  get-club-members:tm-js
         ==
       ::
       ;<  val-u=@  try:m  (arrow ctx-u this-u argc-w argv-u)

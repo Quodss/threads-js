@@ -15,7 +15,7 @@ const ub = require("urbit_thread");
 module.exports = () => {
   console.log('begin script');
   console.log('store the file');
-  ub.store_txt_file('foo/test.txt', 'Test file content overwrite #4');
+  ub.store_txt_file('foo/test.txt', 'Test file content overwrite #5');
   console.log('read the file');
   let txt = ub.load_txt_file('foo/test.txt');
   return txt;
