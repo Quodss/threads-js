@@ -43,6 +43,7 @@
 =>  |%
     ++  ext
       |%
+      ++  restart  (call-ext:arr %restart ~)
       ::  Arvo API
       ::
       ++  get-bowl  (call-ext:arr %get-bowl ~)
@@ -58,6 +59,10 @@
       ++  fetch-url
         |=  =hiss:eyre
         (call-ext:arr %fetch-url vase+!>(hiss) ~)
+      ::
+      ++  sleep
+        |=  for=@dr
+        (call-ext:arr %sleep vase+!>(for) ~)
       ::
       ::  Tlon Messenger API
       ::
@@ -135,7 +140,23 @@
       ++  post-reply
         |=  [=nest:channels-sur key=time post=story:channels-sur]
         (call-ext:arr %post-reply vase+!>(nest) vase+!>(key) vase+!>(post) ~)
+      ::
+      ++  get-leeches
+        (call-ext:arr %get-leeches ~)
+      ::
+      ++  get-targets
+        |=  tag=(unit @ta)
+        (call-ext:arr %get-targets vase+!>(tag) ~)
       --
+    ::  +scry: scry thread with explicit path interpolation
+    ::
+    ++  scry
+      |*  [=mold what=term whom=term pax=path]
+      =/  m  (strand mold)
+      ^-  form:m
+      ;<  =bowl:spider  bind:m  get-bowl:sio
+      %-  pure:m
+      .^(mold what (scot %p our.bowl) whom (scot %da now.bowl) pax)
     ::  +tm: Tlon Messenger API threads. Stateful urwasm scripts cannot scry
     ::  due to persistent memoization, so we offload scrying to threads
     ::
@@ -172,15 +193,6 @@
       =*  action-g         action:v5:groups-sur
       ::
       |%
-      ::  +scry: scry thread with explicit path interpolation
-      ::
-      ++  scry
-        |*  [=mold what=term whom=term pax=path]
-        =/  m  (strand mold)
-        ^-  form:m
-        ;<  =bowl:spider  bind:m  get-bowl:sio
-        %-  pure:m
-        .^(mold what (scot %p our.bowl) whom (scot %da now.bowl) pax)
       ::  +get-channels: get a list of all available channels
       ::
       ++  get-channels  ::  XX nest is a unique identifier for a channel?
@@ -574,6 +586,15 @@
         ?~  sig  (pure:m ~)
         (pure:m vase+!>(u.sig) ~)
       ::
+          %sleep
+        ::  ([vase+@dr ~] => ~
+        ::
+        |=  l=(pole lv)
+        ^-  form:m
+        ?>  ?=([[%vase p=*] ~] l)
+        =+  !<(for=@dr p.l)
+        (sleep:sio for)
+      ::
           %get-channels
         ::  ~ => [vase+(list nest) ~]
         ::
@@ -761,6 +782,26 @@
         ::
         (post-reply:tm nest key post)
       ::
+          %get-leeches
+        ::  ~ => [vase+(set ship) ~]
+        ::
+        |=  *
+        ^-  form:m
+        ;<  s=(set @p)  bind:m  (scry (set @p) %gx %pals /leeches/noun)
+        (pure:m vase+!>(s) ~)
+      ::
+          %get-targets
+        ::  [vase+(unit knot) ~] => [vase+(set ship) ~]
+        ::
+        |=  l=(pole lv)
+        ^-  form:m
+        ?>  ?=([[%vase p=*] ~] l)
+        =+  !<(tag=(unit @ta) p.l)
+        ;<  s=(set @p)  bind:m
+          ?~  tag  (scry (set @p) %gx %pals /targets/noun)
+          (scry (set @p) %gx %pals /targets/[u.tag]/noun)
+        ::
+        (pure:m vase+!>(s) ~)
       ==
     --
 ::
@@ -992,17 +1033,10 @@
       ;<  fun-u=@  try:m
         %-  js-eval
         '''
-        var _fetch = function(url, options) {
+        var _fetch = function(url, options = { method: "GET" }) {
           return new Promise((resolve, reject) => {
             const res = globalThis.fetch_sync(url, options);
-            resolve({
-              status: res.status,
-              statusText: res.statusText,
-              headers: res.headers,
-              ok: res.status >= 200 && res.status < 300,
-              text: () => Promise.resolve(res),                 //  res.body
-              json: () => Promise.resolve(JSON.parse(res)),     //  res.body
-            });
+            resolve(res);
           });
         };
         _fetch
@@ -1031,16 +1065,20 @@
       ;<  res-u=@          try:m
         %-  js-eval
         '''
-        module.exports()
+        globalThis.__result = undefined;
+        Promise.resolve(module.exports()).then(result => {
+          globalThis.__result = result;
+        });
         '''
       ::
-      :: ;<  dump-u=@  try:m  (call-1 'malloc' 4 ~)  ::  XX use scratch arena for things like that
-      :: ;<  *         try:m
-      ::   (call 'QTS_ExecutePendingJob' run-u ^~((sub (bex 32) 1)) dump-u ~)
+      ;<  dump-u=@  try:m  (call-1 'malloc' 4 ~)  ::  XX use scratch arena for things like that
+      ;<  *         try:m
+        (call 'QTS_ExecutePendingJob' run-u ^~((sub (bex 32) 1)) dump-u ~)
       ::
       ;<  err=(unit cord)  try:m  (mayb-error res-u)
       ?^  err  (ret |+[u.err 'failed to call the exported function'])
-      ;<  str=cord         try:m  (get-js-string res-u)
+      ;<  pro-u=@  try:m  (js-eval 'globalThis.__result')
+      ;<  str=cord         try:m  (get-js-string pro-u)
       (ret &+str)
     ::  +get-result: parse (list lv) to get result type.
     ::  Must roundtrip with +ret.
@@ -1107,6 +1145,8 @@
       ::
       ;<  *  try:m  (register-function 'load_txt_file' 5 obj-u)
       ;<  *  try:m  (register-function 'store_txt_file' 6 obj-u)
+      ;<  *  try:m  (register-function 'sleep' 24 obj-u)
+      ;<  *  try:m  (register-function 'restart' 25 obj-u)
       ::
       :: ;<  *  try:m  (register-function 'foo' 1 obj-u)
       ::
@@ -1153,6 +1193,35 @@
       ;<  *  try:m  %:  reg  'send_dm'                21  tlon-u  ==
       ;<  *  try:m  %:  reg  'reply_channel'          22  tlon-u  ==
       ;<  *  try:m  %:  reg  'get_groupchat_members'  23  tlon-u  ==
+      ::
+      ::  add urbit.pals object for Pals API
+      ::
+      ;<  pals-str-u=@  try:m
+        %:  ding  'QTS_NewString'
+          ctx-u
+          (malloc-cord 'pals')
+          ~
+        ==
+      ::
+      ;<  *  try:m
+        %:  ring  'QTS_DefineProp'
+          ctx-u
+          obj-u
+          pals-str-u
+          (call-1 'QTS_NewObject' ctx-u ~)                ::  init value
+          undef-u                                         ::  getter
+          undef-u                                         ::  setter
+          1                                               ::  configurable
+          1                                               ::  enumerable
+          1                                               ::  has value
+          ~
+        ==
+      ::
+      ;<  pals-u=@  try:m
+        (call-1 'QTS_GetProp' ctx-u obj-u pals-str-u ~)
+      ::
+      ;<  *  try:m  %:  reg  'get_leeches'  26  pals-u  ==
+      ;<  *  try:m  %:  reg  'get_targets'  27  pals-u  ==
       ::
       (return:m obj-u)
     ::  +throw-error: returns a pointer to JSException
@@ -1290,6 +1359,8 @@
           ;<  arr-octs=octs  try:m  (memread out-ptrs-u 4)
           =/  arr-u=@  q.arr-octs
           =|  pairs=(list (pair @t json))
+          ;<  *  try:m  (call 'free' out-len-u ~)
+          ;<  *  try:m  (call 'free' out-ptrs-u ~)
           |-  ^-  form:m
           ?:  =(len-w 0)  (return:m o+(molt pairs))
           =/  idx=@  (dec len-w)
@@ -1352,7 +1423,8 @@
         ==
       ::
       (return:m ~)
-    ::  +store-json: load JSON noun and return JSValue pointer to it
+    ::  +store-json: put JSON noun into QuickJS context
+    ::  and return JSValue pointer to it
     ::
     ++  store-json
       |=  jon=json
@@ -1363,14 +1435,15 @@
       =+  (get-js-ctx acc)
       ::
       =/  jon-cod=cord  (en:json:html jon)
-      ::  duplicate backslashes to escape them in JSON.parse
+      ::  escape backslashes and single quotes in JSON.parse
       ::
       =.  jon-cod
         %+  rap  3
         %+  rash  jon-cod
         ^~  %-  star
         ;~  pose
-          (cold '\\\\' bas)
+          (cold '\\\\' bas)  ::  \ -> \\
+          (cold '\\\'' soq)  ::  ' -> \'
           next
         ==
       ::
@@ -1596,7 +1669,7 @@
       =/  m  (script:lia-sur:wasm @ acc-mold)
       ^-  form:m
       =,  arr
-      ?.  (gte argc-w 2)  (throw-args 'fetch_sync' argc-w 2)
+      ?.  (gte argc-w 1)  (throw-args 'fetch_sync' argc-w 1)
       ::  (either a string or URL object)
       ::
       ;<  url-jon=json  try:m  (load-json argv-u)
@@ -1611,7 +1684,12 @@
         ==
       ::
       ?~  lur   (throw-error 'Unrecognized type in fetch_sync')
-      ;<  tom=json  try:m  (load-json (add argv-u 8))
+      ;<  tom=json  try:m
+        =/  m  (script:lia-sur:wasm json acc-mold)
+        ^-  form:m
+        ?:  =(1 argc-w)  (return:m o+~)
+        (load-json (add argv-u 8))
+      ::
       ?~  purl=(parse-url u.lur)  (throw-url u.lur)
       ?.  ?=([%o *] tom)  (throw-methods tom)
       ?~  moth=(parse-methods p.tom)  (throw-methods tom)
@@ -1631,6 +1709,30 @@
         ==
       ::
       (store-json jon)
+    ::
+    ++  sleep
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ?.  (gte argc-w 1)  (throw-args 'sleep' argc-w 1)
+      ;<  float=@rd  try:m  (call-1 'QTS_GetFloat64' ctx-u argv-u ~)
+      ?~  n=(bind (toi:rd float) abs:si)  (throw-integer float)
+      ;<  *  try:m  (sleep:ext (mul u.n ~s1))
+      return-undefined
+    ::  does not return
+    ::
+    ++  restart
+      |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+      =/  m  (script:lia-sur:wasm @ acc-mold)
+      ^-  form:m
+      =,  arr
+      ::  signal to the host that the upcoming Wasm crash is
+      ::  part of freeing the state
+      ::
+      ;<  *  try:m  restart:ext
+      ~&  >  'Freeing Wasm VM by crashing it'
+      fail:m
     ::
     ::  +clock-time-get: WASI import to get time
     ::
@@ -1654,6 +1756,57 @@
       =/  ntime  (mul 1.000.000 (unm:chrono:userlib time))
       ;<  ~  try:m  (memwrite time-u 8 ntime)
       (return:m i32+0 ~)
+    ::  ++enjs: encode to JSON. We roll our own en/decodings to ensure
+    ::  roundtripping
+    ::
+    ++  enjs
+      =,  enjs:format
+      |%
+      ::  replaces ++ship:enjs:format and is different from Tlon def
+      ::
+      ++  ship
+        |=  a=@p
+        ^-  json
+        s+(scot %p a)
+      ::  time is used as a unique key, we need to preserve it
+      ::
+      ++  time
+        |=  t=@
+        ^-  json
+        s+(rap 3 +>:(scow %ui t))
+      ::
+      ++  memo
+        |=  m=memo:channels-sur
+        ^-  json
+        %-  pairs
+        :~  content/(story:enjs:cj content.m)
+            author/(ship author.m)
+            sent/(time sent.m)
+        ==
+      --
+    ::  ++dejs: decode from JSON
+    ::
+    ++  dejs
+      =,  dejs:format
+      |%
+      ++  ship
+        |=  jon=json
+        ^-  @p
+        ?>  ?=(%s -.jon)
+        (slav %p p.jon)
+      ::
+      ++  memo
+        ^-  $-(json memo:channels-sur)
+        %-  ot
+        :~  content+story:dejs:cj
+            author+ship
+            sent+di
+        ==
+      ::
+      ++  time
+        ^-  $-(json @da)
+        (su dim:ag)
+      --
     ::  TM API functions linked to JS environment
     ::
     ++  tm-js
@@ -1662,54 +1815,6 @@
       ::  Memo: {content: Story, author: string, sent: number}
       ::
       |%
-      ++  enjs
-        =,  enjs:format
-        |%
-        ::  replaces ++ship:enjs:format and is different from Tlon def
-        ::
-        ++  ship
-          |=  a=@p
-          ^-  json
-          s+(scot %p a)
-        ::  time is used as a unique key, we need to preserve it
-        ::
-        ++  time
-          |=  t=@
-          ^-  json
-          s+(rap 3 +>:(scow %ui t))
-        ::
-        ++  memo
-          |=  m=memo:channels-sur
-          ^-  json
-          %-  pairs
-          :~  content/(story:enjs:cj content.m)
-              author/(ship author.m)
-              sent/(time sent.m)
-          ==
-        --
-      ::
-      ++  dejs
-        =,  dejs:format
-        |%
-        ++  ship
-          |=  jon=json
-          ^-  @p
-          ?>  ?=(%s -.jon)
-          (slav %p p.jon)
-        ::
-        ++  memo
-          ^-  $-(json memo:channels-sur)
-          %-  ot
-          :~  content+story:dejs:cj
-              author+ship
-              sent+di
-          ==
-        ::
-        ++  time
-          ^-  $-(json @da)
-          (su dim:ag)
-        --
-      ::
       ++  rule-ship-club
         %+  cook  |=((each @p id:club:chat-sur) +<)
         ;~  pose
@@ -2044,6 +2149,46 @@
         =+  !<(s=(set @p) p.res)
         (store-json a+(turn ~(tap in s) ship:enjs))
       --
+    ::  Pals functions linked to JS environment
+    ::
+    ++  pals-js
+      |%
+      ::  () => string[]
+      ::
+      ++  leeches
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ;<  res=(pole lv)  try:m  get-leeches:ext
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(s=(set @p) p.res)
+        (store-json a+(turn ~(tap in s) ship:enjs))
+      ::  (?tag=string) => string[]
+      ::
+      ++  targets
+        |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
+        =/  m  (script:lia-sur:wasm @ acc-mold)
+        ^-  form:m
+        =,  arr
+        ?:  =(argc-w 0)
+          ::  get all targets
+          ::
+          ;<  res=(pole lv)  try:m  (get-targets:ext ~)
+          ?>  ?=([[%vase p=*] ~] res)
+          =+  !<(s=(set @p) p.res)
+          (store-json a+(turn ~(tap in s) ship:enjs))
+        ::  if the tag is valid filter targets by tag,
+        ::  else empty list
+        ::
+        ;<  tag-str=cord  try:m  (get-js-string argv-u)
+        ?.  &(((sane %ta) tag-str) !=(~ tag-str))
+          (call-1 'QTS_NewArray' ctx-u ~)
+        ;<  res=(pole lv)  try:m  (get-targets:ext ~ `@ta`tag-str)
+        ?>  ?=([[%vase p=*] ~] res)
+        =+  !<(s=(set @p) p.res)
+        (store-json a+(turn ~(tap in s) ship:enjs))
+      --
     ::  +qts-host-call-function: Wasm import to resolve JS imports
     ::
     ++  qts-host-call-function
@@ -2089,6 +2234,10 @@
           %21  send-dm:tm-js
           %22  reply-channel:tm-js
           %23  get-club-members:tm-js
+          %24  sleep
+          %25  restart
+          %26  leeches:pals-js
+          %27  targets:pals-js
         ==
       ::
       ;<  val-u=@  try:m  (arrow ctx-u this-u argc-w argv-u)
@@ -2117,20 +2266,35 @@
 ::
 =/  hint  %rand
 |=  code=cord
-=/  m  (strand (each cord (pair cord cord)))
-^-  form:m
-=/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~ imports]
-=^  [yil=(yield (list lv)) *]  seed  (run:wasm &+(main code) seed hint)
-|-  ^-  form:m
-?-    -.yil
-    %0
-  (pure:m (get-result p.yil))
-::
-    %1
-  ;<  res=(list lv)  bind:m  ((fetch-thread name.yil) args.yil)
-  =^  [yil1=(yield (list lv)) *]  seed  (run:wasm |+res seed hint)
-  $(yil yil1)
-::
-    %2
-  (strand-fail:rand %thread-js ~['Wasm VM crashed'])
-==
+^-  shed:khan
+=/  m  (strand vase)
+;<  res=(each cord (pair cord cord))  bind:m
+  =/  m  (strand (each cord (pair cord cord)))
+  ;<  *  bind:m  (pure:m &+%$)
+  |-  ^-  form:m
+  =*  restart-loop  $
+  =/  =seed:lia-sur:wasm  [quick-js-wasm (return:runnable:wasm ~) ~ imports]
+  =^  [yil=(yield (list lv)) *]  seed  (run:wasm &+(main code) seed hint)
+  |-  ^-  form:m
+  =*  block-loop  $
+  ?-    -.yil
+      %0
+    (pure:m (get-result p.yil))
+  ::
+      %1
+    ?:  ?=(%restart name.yil)
+      ::  free state, run anew
+      ::
+      =^  *  seed  (run:wasm |+~ seed hint)
+      restart-loop
+    ::  resolve block, continue
+    ::
+    ;<  res=(list lv)  bind:m  ((fetch-thread name.yil) args.yil)
+    =^  [yil1=(yield (list lv)) *]  seed  (run:wasm |+res seed hint)
+    block-loop(yil yil1)
+  ::
+      %2
+    (strand-fail:rand %thread-js ~['Wasm VM crashed'])
+  ==
+::  ;<  res
+(pure:m !>(res))
