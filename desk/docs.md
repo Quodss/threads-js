@@ -159,67 +159,81 @@ These functions are used for interacting with Tlon Messenger app suite. `id: str
  */
 
 /**
- * @typedef {(id: string, key: string) => Memo[]} get_dm_replies
+ * @typedef {(id: string, key: string) => Memo[]} tlon.get_dm_replies
  * @description Returns a list of replies to a DM message
  */
 
 /**
- * @typedef {(nest: Nest, key: string) => Memo[]} get_channel_replies
+ * @typedef {(nest: Nest, key: string) => Memo[]} tlon.get_channel_replies
  * @description Returns a list of replies to a channel post
  */
 
 /**
- * @typedef {(nest: Nest) => string[]} get_channel_members
+ * @typedef {(nest: Nest) => string[]} tlon.get_channel_members
  * @description Returns a list of members in a channel
  */
 
 /**
- * @typedef {(id: string) => string[]} get_groupchat_members
+ * @typedef {(id: string) => string[]} tlon.get_groupchat_members
  * @description Returns a list of members in a groupchat
  */
 
 /**
- * @typedef {(nest: Nest, ship: string) => string[]} get_roles
+ * @typedef {(nest: Nest, ship: string) => string[]} tlon.get_roles
  * @description Returns a list of roles of a user in the group of a channel
  */
 
 /**
- * @typedef {(nest: Nest, ship: string) => ()} invite_user_channel
+ * @typedef {(nest: Nest, ship: string) => ()} tlon.invite_user_channel
  * @description Invite user to the group of a channel
  */
 
 /**
- * @typedef {(id: string, ship: string) => ()} invite_user_groupchat
+ * @typedef {(id: string, ship: string) => ()} tlon.invite_user_groupchat
  * @description Invite user to a groupchat
  */
 
 /**
- * @typedef {(nest: Nest, ship: string) => ()} kick_user_channel
+ * @typedef {(nest: Nest, ship: string) => ()} tlon.kick_user_channel
  * @description Remove user from the group of a channel
  */
 
 /**
- * @typedef {(nest: Nest, ship: string, role: string) => ()} give_role
+ * @typedef {(nest: Nest, ship: string, role: string) => ()} tlon.give_role
  * @description Give role to a user in the group of a channel
  */
 
 /**
- * @typedef {(nest: Nest, ship: string, role: string) => ()} remove_role
+ * @typedef {(nest: Nest, ship: string, role: string) => ()} tlon.remove_role
  * @description Remove role from a user in the group of a channel
  */
 
 /**
- * @typedef {(nest: Nest, post: string) => ()} post_channel
+ * @typedef {(nest: Nest, post: string) => ()} tlon.post_channel
  * @description Post a simple message in the channel, no formatting
  */
 
 /**
- * @typedef {(id: string, post: string) => ()} send_dm
+ * @typedef {(id: string, post: string) => ()} tlon.send_dm
  * @description Send a simple DM in the channel, no formatting
  */
 
 /**
- * @typedef {(nest: Nest, key: string, post: string) => ()} reply_channel
+ * @typedef {(nest: Nest, key: string, post: string) => ()} tlon.reply_channel
  * @description Reply to a message in a channel, no formatting
+ */
+```
+
+These functions are used to interact with `%pals` agent.
+
+```js
+/**
+ * @typedef {() => string[]} pals.leeches
+ * @description Get a list of incoming pals requests
+ */
+
+/**
+ * @typedef {(?tag: string) => string[]} pals.targets
+ * @description Get a list of outgoing pals requests, filtered with an optional tag
  */
 ```
