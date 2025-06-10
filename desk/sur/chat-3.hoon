@@ -7,9 +7,9 @@
 ::  $writ: a chat message
 +$  writ   [seal essay]
 ::  $reply: a chat reply
-+$  reply   [reply-seal memo:d]
++$  reply   [reply-seal memo:v7:old:d]
 ::  $react: either an emoji identifier like :wave: or a URL for custom
-+$  react   react:d
++$  react   @ta
 ::  $scam: bounded search results
 +$  scam
   $:  last=(unit time)  ::  last (top-level) msg (local) id that was searched
@@ -39,37 +39,30 @@
 ::
 +$  seal
   $:  =id
-      =time
+      time=id-post:d
       =reacts
       =replies
-      =reply-meta
+      meta=reply-meta
   ==
-+$  author  author:d
-+$  reply-meta  reply-meta:d
++$  reply-meta
+  $:  reply-count=@ud
+      last-repliers=(set ship)
+      last-reply=(unit time)
+  ==
 ::
 ::  $reply-seal: chat reply metadata
 +$  reply-seal
   $:  =id
       parent-id=id
-      =time
+      time=id-post:d
       =reacts
   ==
 ::
 ::  $essay: a chat message with metadata
-::
-::  $memo: post data
-::  .kind: /chat post kind
-::  .meta: post metadata
-::  .blob: custom payload
-::
-+$  essay
-  $:  memo:d
-      kind=[%chat path]
-      meta=(unit data:meta)
-      blob=(unit @t)
-  ==
++$  essay  [memo:v7:old:d %chat =kind]
++$  kind  $@(~ [%notice ~])
 ::  $reacts: a set of reactions to a chat message
-+$  reacts  (map author react)
++$  reacts  (map ship react)
 ::
 ::  $pact: a double indexed map of chat messages, id -> time -> message
 ::
@@ -102,19 +95,19 @@
   +$  delta
     ::  time and meta are units because we won't have it when we send,
     ::  but we need it upon receipt
-    $%  [%add =essay time=(unit time)]
+    $%  [%add =memo:v7:old:d =kind time=(unit time)]
         [%del ~]
         [%reply =id meta=(unit reply-meta) =delta:replies]
-        [%add-react =author =react]
-        [%del-react =author]
+        [%add-react =ship =react]
+        [%del-react =ship]
     ==
   +$  response  [=id response=response-delta]
   +$  response-delta
-    $%  [%add =essay =time]
+    $%  [%add =memo:v7:old:d =time]
         [%del ~]
         [%reply =id meta=(unit reply-meta) delta=response-delta:replies]
-        [%add-react =author =react]
-        [%del-react =author]
+        [%add-react =ship =react]
+        [%del-react =ship]
     ==
   --
 ::
@@ -128,16 +121,16 @@
   ++  on
     ((^on time reply) lte)
   +$  delta
-    $%  [%add =memo:d time=(unit time)]
+    $%  [%add =memo:v7:old:d time=(unit time)]
         [%del ~]
-        [%add-react =author =react]
-        [%del-react =author]
+        [%add-react =ship =react]
+        [%del-react =ship]
     ==
   +$  response-delta
-    $%  [%add =memo:d =time]
+    $%  [%add =memo:v7:old:d =time]
         [%del ~]
-        [%add-react =author =react]
-        [%del-react =author]
+        [%add-react =ship =react]
+        [%del-react =ship]
     ==
   --
 ::

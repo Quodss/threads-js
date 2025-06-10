@@ -7,7 +7,7 @@
 '''
 const ub = require("urbit_thread");
 module.exports = () => {
-  res = fetch_sync("google.com");
-  return res.body;
+  res = ub.pals.get_leeches()
+  return res;
 };
 '''

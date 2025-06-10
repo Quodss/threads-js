@@ -190,7 +190,7 @@
       =*  flag             flag:groups-sur
       =*  vessel           vessel:fleet:groups-sur
       =*  sect-groups      sect:groups-sur
-      =*  action-g         action:v5:groups-sur
+      =*  action-g         action:v6:groups-sur
       ::
       |%
       ::  +get-channels: get a list of all available channels
@@ -199,7 +199,7 @@
         =/  m  (strand (list nest))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  XX don't need full, tmp workaround for a scry bug in %channels
         ::
         (pure:m ~(tap in ~(key by channels)))
       ::  +get-chan-messages: get a list of N last messages in a channel
@@ -315,7 +315,7 @@
         =/  m  (strand (set ship))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  XX full is tmp workaround
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -340,7 +340,7 @@
         =/  m  (strand (set sect-groups))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -365,7 +365,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -407,7 +407,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -427,7 +427,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -447,7 +447,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
@@ -467,11 +467,11 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-c  [%channel nest %post %add [post [our now]:bol] chat+~]
+        =/  act=action-c  [%channel nest %post %add [post [our now]:bol] / ~ ~]
         (poke:sio [our.bol %channels] channel-action+!>(act))
       ::  +send-dm: send DM duh
       ::
@@ -481,7 +481,7 @@
         ^-  form:m
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
         =/  act=action-dm
-          [her [our now]:bol %add [post [our now]:bol] ~ `now.bol]
+          [her [[our now]:bol %add [[post [our now]:bol] chat+/ ~ ~] `now.bol]]
         ::
         (poke:sio [our.bol %chat] chat-dm-action+!>(act))
       ::  +send-club: send groupchat DM
@@ -505,7 +505,14 @@
           $(eny +(eny))
         ::
         =/  act=action-club
-          [zem unique %writ [our now]:bol %add [post [our now]:bol] ~ `now.bol]
+          :*  zem
+              unique
+              %writ
+              [our now]:bol
+              %add
+              [[post [our now]:bol] chat+/ ~ ~]
+              `now.bol
+          ==
         ::
         (poke:sio [our.bol %chat] chat-club-action-0+!>(act))
       ::  +post-reply: reply to a post in a channel
@@ -515,7 +522,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/channels-3)
+          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
@@ -787,7 +794,9 @@
         ::
         |=  *
         ^-  form:m
-        ;<  s=(set @p)  bind:m  (scry (set @p) %gx %pals /leeches/noun)
+        ;<  pals-exist=?  bind:m  (scry ? %gu %pals /$)
+        ?.  pals-exist  (pure:m vase+!>(~) ~)
+        ;<  s=(set @p)    bind:m  (scry (set @p) %gx %pals /leeches/noun)
         (pure:m vase+!>(s) ~)
       ::
           %get-targets
@@ -795,6 +804,8 @@
         ::
         |=  l=(pole lv)
         ^-  form:m
+        ;<  pals-exist=?  bind:m  (scry ? %gu %pals /$)
+        ?.  pals-exist  (pure:m vase+!>(~) ~)
         ?>  ?=([[%vase p=*] ~] l)
         =+  !<(tag=(unit @ta) p.l)
         ;<  s=(set @p)  bind:m
@@ -1780,7 +1791,7 @@
         ^-  json
         %-  pairs
         :~  content/(story:enjs:cj content.m)
-            author/(ship author.m)
+            author/(ship ?@(a=author.m a ship.a))
             sent/(time sent.m)
         ==
       --
@@ -1860,7 +1871,7 @@
         ^-  json
         =,  enjs:format
         %-  pairs
-        :~  key+(time t)
+        :~  key+(time:enjs t)
             message+(memo:enjs m)
         ==
       ::  (string, number) => {key: number, message: Memo}[]
@@ -1892,7 +1903,7 @@
         ^-  json
         =,  enjs:format
         %-  pairs
-        :~  key+(time t)
+        :~  key+(time:enjs t)
             message+(memo:enjs m)
         ==
       ::  (string, key=number) => Memo[]
@@ -2262,7 +2273,8 @@
     ['env'^'emscripten_notify_memory_growth' emscripten-notify-memory-growth]
   ==
 ::
-::  Thread builder, (JS code => ?([%& p=result] [%| p=how q=where]))
+::  Thread builder
+::  (JS code => _!>(*?([%& p=result=cord] [%| p=how=cord q=where=cord])))
 ::
 =/  hint  %rand
 |=  code=cord
@@ -2297,4 +2309,4 @@
     (strand-fail:rand %thread-js ~['Wasm VM crashed'])
   ==
 ::  ;<  res
-(pure:m !>(res))
+(pure:m !>(0+res))
