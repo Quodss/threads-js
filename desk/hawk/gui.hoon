@@ -83,10 +83,10 @@
     ;form.fc.grow
       =method  "post"
       =hx-swap  "none"
+      =style  "flex:0 0 50%;min-height:0"
       ;textarea#code-val-el.b0.grow.p2.mono
         =name  "/code-val"
         =placeholder  "Paste JavaScript code here"
-        =style  "overflow-y:auto;white-space:pre-wrap;word-break:break-word"
         ;-  get-code
       ==
       ;button.p2.hover.b1.bd1.loader
@@ -96,11 +96,16 @@
     ==
     ::
     ;div#output.b0.grow.p2.pre.mono
-      =style  "overflow-y:auto;white-space:pre-wrap;word-break:break-word"
+      =style  """
+              flex: 0 0 50%;
+              min-height: 0;
+              overflow-y: auto;
+              white-space: pre-wrap;
+              word-break: break-word;
+              """
+      ::
       ;+  refresher
-    ::
       ;-  output
-    ::
     ==
   ==
 ++  get-code
