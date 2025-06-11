@@ -399,7 +399,7 @@
           $(eny +(eny))
         ::
         =/  act=action-club  [zem unique %hive our.bol her &]
-        (poke:sio [our.bol %chat] chat-club-action-0+!>(act))
+        (poke:sio [our.bol %chat] chat-club-action-1+!>(act))
       ::  +kick-user-chan: kick a user from the group of a chat
       ::
       ++  kick-user-chan
@@ -471,8 +471,9 @@
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-c  [%channel nest %post %add [post [our now]:bol] / ~ ~]
-        (poke:sio [our.bol %channels] channel-action+!>(act))
+        =/  act=action-c
+          [%channel nest %post %add [post [our now]:bol] /chat ~ ~]
+        (poke:sio [our.bol %channels] channel-action-1+!>(act))
       ::  +send-dm: send DM duh
       ::
       ++  send-dm
@@ -483,7 +484,7 @@
         =/  act=action-dm
           [her [[our now]:bol %add [[post [our now]:bol] chat+/ ~ ~] `now.bol]]
         ::
-        (poke:sio [our.bol %chat] chat-dm-action+!>(act))
+        (poke:sio [our.bol %chat] chat-dm-action-1+!>(act))
       ::  +send-club: send groupchat DM
       ::
       ++  send-club
@@ -514,7 +515,7 @@
               `now.bol
           ==
         ::
-        (poke:sio [our.bol %chat] chat-club-action-0+!>(act))
+        (poke:sio [our.bol %chat] chat-club-action-1+!>(act))
       ::  +post-reply: reply to a post in a channel
       ::
       ++  post-reply
@@ -529,7 +530,7 @@
         =/  act=action-c
           [%channel nest %post %reply key %add post [our now]:bol]
         ::
-        (poke:sio [our.bol %channels] channel-action+!>(act))
+        (poke:sio [our.bol %channels] channel-action-1+!>(act))
       --
     ::  +fetch-thread: get a Spider thread by name from +call-ext:arr
     ::
@@ -2274,7 +2275,7 @@
   ==
 ::
 ::  Thread builder
-::  (JS code => _!>(*?([%& p=result=cord] [%| p=how=cord q=where=cord])))
+::  (JS code => _!>(*[%0 ?([%& p=result=cord] [%| p=how=cord q=where=cord])]))
 ::
 =/  hint  %rand
 |=  code=cord
