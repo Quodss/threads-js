@@ -144,17 +144,17 @@ These functions are used for interacting with Tlon Messenger app suite. `id: str
  */
 
 /**
- * @typedef {() => Nest[]} get_channels
+ * @typedef {() => Nest[]} tlon.get_channels
  * @description Returns a list of all TM channels' identifiers you are currently in
  */
 
 /**
- * @typedef {(nest: Nest, n: number) => {key: string, message: Memo}[]} get_channel-messages
+ * @typedef {(nest: Nest, n: number) => {key: string, message: Memo}[]} tlon.get_channel-messages
  * @description Returns a list of N last messages in a given channel with their unique keys
  */
 
 /**
- * @typedef {(id: string, n: number) => {key: string, message: Memo}[]} get_dm_messages
+ * @typedef {(id: string, n: number) => {key: string, message: Memo}[]} tlon.get_dm_messages
  * @description Returns a list of N last messages in a given chat with their unique keys
  */
 
