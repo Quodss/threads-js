@@ -1,4 +1,4 @@
-/-  d=channels
+/-  g=groups, d=channels
 /-  meta
 |%
 ::
@@ -26,32 +26,19 @@
       [%show =id]
   ==
 +$  reference
-  $%  [%writ writ=(may writ)]
-      [%reply =id reply=(may reply)]
+  $%  [%writ =writ]
+      [%reply =id =reply]
   ==
-+$  tombstone
-  $:  =id
-      seq=@ud
-      =time
-      =author
-      del-at=@da
-  ==
-++  may
-  |$  [data]
-  ::NOTE  not +each, avoids p= faces for better ergonomics
-  $%([%& data] [%| tombstone])
 ::
 ::  $seal: the id of a chat and its meta-responses
 ::
 ::    id: the id of the message
-::    seq: sequence number (first msg is 1, there is no 0th msg)
 ::    time: the time the message was received
 ::    replies: set of replies to a message
 ::    reacts: reactions to a message
 ::
 +$  seal
   $:  =id
-      seq=@ud
       =time
       =reacts
       =replies
@@ -84,19 +71,12 @@
 ::  $reacts: a set of reactions to a chat message
 +$  reacts  (map author react)
 ::
-::  $pact: a triple-indexed map of chat messages,
-::         .wit: time -> message
-::         .dex: id -> time
-::         .upd: edit-time -> time
+::  $pact: a double indexed map of chat messages, id -> time -> message
 ::
 +$  pact
-  $:  num=@ud  ::  number of msgs/highest nr msg, for sequence nr generation
-      wit=writs
+  $:  wit=writs
       dex=index
-      upd=last-updated
   ==
-+$  last-updated  ((mop time time) lte)
-++  updated-on    ((on time time) lte)
 ::
 ::  $paged-writs: a set of time ordered chat messages, with page cursors
 ::
@@ -104,7 +84,6 @@
   $:  =writs
       newer=(unit time)
       older=(unit time)
-      newest=@ud
       total=@ud
   ==
 ::
@@ -115,15 +94,14 @@
   =<  writs
   |%
   +$  writs
-    ((mop time (may writ)) lte)
+    ((mop time writ) lte)
   ++  on
-    ((^on time (may writ)) lte)
+    ((^on time writ) lte)
   +$  diff
     (pair id delta)
   +$  delta
     ::  time and meta are units because we won't have it when we send,
-    ::  but we need it upon receipt.
-    ::
+    ::  but we need it upon receipt
     $%  [%add =essay time=(unit time)]
         [%del ~]
         [%reply =id meta=(unit reply-meta) =delta:replies]
@@ -132,7 +110,7 @@
     ==
   +$  response  [=id response=response-delta]
   +$  response-delta
-    $%  [%add =essay seq=@ud =time]
+    $%  [%add =essay =time]
         [%del ~]
         [%reply =id meta=(unit reply-meta) delta=response-delta:replies]
         [%add-react =author =react]
@@ -146,9 +124,9 @@
   =<  replies
   |%
   +$  replies
-    ((mop time (may reply)) lte)
+    ((mop time reply) lte)
   ++  on
-    ((^on time (may reply)) lte)
+    ((^on time reply) lte)
   +$  delta
     $%  [%add =memo:d time=(unit time)]
         [%del ~]

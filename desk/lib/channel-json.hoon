@@ -1,6 +1,6 @@
-/-  c=channels, g=groups
+/-  c=channels, g=groups, s=story
 /-  meta
-/+  cite=cite-json, gj=groups-json
+/+  gj=groups-json, sj=story-json, dj=cite-json
 =*  z  ..zuse
 |%
 ++  enjs
@@ -92,7 +92,7 @@
     |=  =r-post:c
     %+  frond  -.r-post
     ?-  -.r-post
-      %set    ?~(post.r-post ~ (post u.post.r-post))
+      %set    ?:(?=(%| -.post.r-post) (tombstone +.post.r-post) (post +.post.r-post))
       %reacts  (reacts reacts.r-post)
       %essay  (essay essay.r-post)
     ::
@@ -108,7 +108,7 @@
     |=  r-post=r-simple-post:c
     %+  frond  -.r-post
     ?-  -.r-post
-      %set    ?~(post.r-post ~ (simple-post u.post.r-post))
+      %set    ?:(?=(%| -.post.r-post) (tombstone +.post.r-post) (simple-post +.post.r-post))
       %reacts  (reacts reacts.r-post)
       %essay  (essay essay.r-post)
     ::
@@ -124,7 +124,7 @@
     |=  =r-reply:c
     %+  frond  -.r-reply
     ?-  -.r-reply
-      %set    ?~(reply.r-reply ~ (reply u.reply.r-reply))
+      %set    ?:(?=(%| -.reply.r-reply) (tombstone +.reply.r-reply) (reply +.reply.r-reply))
       %reacts  (reacts reacts.r-reply)
     ==
   ::
@@ -132,7 +132,7 @@
     |=  r-reply=r-simple-reply:c
     %+  frond  -.r-reply
     ?-  -.r-reply
-      %set    ?~(reply.r-reply ~ (simple-reply u.reply.r-reply))
+      %set    ?:(?=(%| -.reply.r-reply) (tombstone +.reply.r-reply) (simple-reply +.reply.r-reply))
       %reacts  (reacts reacts.r-reply)
     ==
   ::
@@ -140,11 +140,11 @@
     |=  heads=channel-heads:c
     :-  %a
     %+  turn  heads
-    |=  [=nest:c recency=^time latest=(unit post:c)]
+    |=  [=nest:c recency=^time latest=(may:c post:c)]
     %-  pairs
     :~  nest+(^nest nest)
         recency+(time recency)
-        latest+?~(latest ~ (post u.latest))
+        latest+?-(-.latest %& (post +.latest), %| (tombstone +.latest))
     ==
   ::
   ++  paged-posts
@@ -153,6 +153,7 @@
     :~  posts+(posts posts.pn)
         newer+?~(newer.pn ~ (id u.newer.pn))
         older+?~(older.pn ~ (id u.older.pn))
+        newest+(numb newest.pn)
         total+(numb total.pn)
     ==
   ++  paged-simple-posts
@@ -161,6 +162,7 @@
     :~  posts+(simple-posts posts.pn)
         newer+?~(newer.pn ~ (id u.newer.pn))
         older+?~(older.pn ~ (id u.older.pn))
+        newest+(numb newest.pn)
         total+(numb total.pn)
     ==
   +|  %rr
@@ -188,8 +190,8 @@
     |=  =posts:c
     %-  pairs
     %+  turn  (tap:on-posts:c posts)
-    |=  [id=id-post:c post=(unit post:c)]
-    [(scot %ud id) ?~(post ~ (^post u.post))]
+    |=  [id=id-post:c post=(may:c post:c)]
+    [(scot %ud id) (may ^post post)]
   ::
   ++  post
     |=  [=seal:c [rev=@ud =essay:c]]
@@ -199,12 +201,21 @@
         essay+(^essay essay)
         type+s+%post
     ==
+  ++  tombstone
+    |=  t=tombstone:c
+    %-  pairs
+    :~  id+(id id.t)
+        author+(author author.t)
+        seq+(numb seq.t)
+        deleted-at+(time del-at.t)
+        type+s+%tombstone
+    ==
   ++  simple-posts
     |=  posts=simple-posts:c
     %-  pairs
     %+  turn  (tap:on-simple-posts:c posts)
-    |=  [id=id-post:c post=(unit simple-post:c)]
-    [(scot %ud id) ?~(post ~ (simple-post u.post))]
+    |=  [id=id-post:c post=(may:c simple-post:c)]
+    [(scot %ud id) (may simple-post post)]
   ::
   ++  simple-post
     |=  [seal=simple-seal:c =essay:c]
@@ -218,8 +229,8 @@
     |=  =replies:c
     %-  pairs
     %+  turn  (tap:on-replies:c replies)
-    |=  [t=@da reply=(unit reply:c)]
-    [(scot %ud t) ?~(reply ~ (^reply u.reply))]
+    |=  [t=@da reply=(may:c reply:c)]
+    [(scot %ud t) ?:(?=(%| -.reply) (tombstone +.reply) (^reply +.reply))]
   ::
   ++  simple-replies
     |=  replies=simple-replies:c
@@ -247,7 +258,7 @@
     |=  =seal:c
     %-  pairs
     :~  id+(id id.seal)
-        seq+(seq seq.seal)
+        seq+(numb seq.seal)
         mod-at+(mod-at mod-at.seal)
         reacts+(reacts reacts.seal)
         replies+(replies replies.seal)
@@ -317,6 +328,13 @@
   ::
   +|  %primitives
   ::
+  ++  may
+    |*  [f=$-(* json) m=(may:c *)]
+    ?-  -.m
+      %&  (f +.m)
+      %|  (tombstone +.m)
+    ==
+  ::
   ++  v-channel
     |=  ca=v-channel:c
     %-  pairs
@@ -330,10 +348,6 @@
   ++  id
     |=  =@da
     s+`@t`(rsh 4 (scot %ui da))
-  ::
-  ++  seq
-    |=  =@ud
-    s+`@t`(rsh 4 (scot %ui ud))
   ::
   ++  mod-at
     |=  =@da
@@ -441,22 +455,13 @@
   ++  essay
     |=  =essay:c
     %-  pairs
-    :~  content+(story content.essay)
+    :~  content+(story:enjs:sj content.essay)
         author+(author author.essay)
         sent+(time sent.essay)
         ::
         kind+(path kind.essay)
         meta+(meta meta.essay)
         blob+?~(blob.essay ~ s/u.blob.essay)
-    ==
-  ::
-  ++  kind-data
-    |=  =kind-data:c
-    %+  frond  -.kind-data
-    ?-    -.kind-data
-      %heap   ?~(title.kind-data ~ s+u.title.kind-data)
-      %chat   ?~(kind.kind-data ~ (pairs notice+~ ~))
-      %diary  (pairs title+s+title.kind-data image+s+image.kind-data ~)
     ==
   ::
   ++  reply-meta
@@ -467,108 +472,11 @@
         'lastRepliers'^a/(turn ~(tap in last-repliers.r) author)
     ==
   ::
-  ++  verse
-    |=  =verse:c
-    ^-  json
-    %+  frond  -.verse
-    ?-  -.verse
-        %block  (block p.verse)
-        %inline  a+(turn p.verse inline)
-    ==
-  ++  block
-    |=  b=block:c
-    ^-  json
-    %+  frond  -.b
-    ?-  -.b
-        %rule  ~
-        %cite  (enjs:cite cite.b)
-        %listing  (listing p.b)
-        %header
-      %-  pairs
-      :~  tag+s+p.b
-          content+a+(turn q.b inline)
-      ==
-        %image
-      %-  pairs
-      :~  src+s+src.b
-          height+(numb height.b)
-          width+(numb width.b)
-          alt+s+alt.b
-      ==
-        %code
-      %-  pairs
-      :~  code+s+code.b
-          lang+s+lang.b
-      ==
-        %link
-      %-  pairs
-      :~  url+s+url.b
-          meta+o+(~(run by meta.b) (lead %s))
-      ==
-    ==
-  ::
-  ++  listing
-    |=  l=listing:c
-    ^-  json
-    %+  frond  -.l
-    ?-  -.l
-        %item  a+(turn p.l inline)
-        %list
-      %-  pairs
-      :~  type+s+p.l
-          items+a+(turn q.l listing)
-          contents+a+(turn r.l inline)
-      ==
-    ==
-  ::
-  ++  inline
-    |=  i=inline:c
-    ^-  json
-    ?@  i  s+i
-    %+  frond  -.i
-    ?-  -.i
-        %break
-      ~
-    ::
-        %ship  s/(scot %p p.i)
-    ::
-        %sect  ?~(p.i ~ s+p.i)
-    ::
-        ?(%code %tag %inline-code)
-      s+p.i
-    ::
-        ?(%italics %bold %strike %blockquote)
-      :-  %a
-      (turn p.i inline)
-    ::
-        %block
-      %-  pairs
-      :~  index+(numb p.i)
-          text+s+q.i
-      ==
-    ::
-        %link
-      %-  pairs
-      :~  href+s+p.i
-          content+s+q.i
-      ==
-        %task
-      %-  pairs
-      :~  checked+b+p.i
-          content+a+(turn q.i inline)
-      ==
-    ==
-  ::
-  ++  story
-    |=  s=story:c
-    ^-  json
-    a+(turn s verse)
-  ::
   ++  memo
     |=  m=memo:c
     ^-  json
     %-  pairs
-    :~  content/(story content.m)
+    :~  content/(story:enjs:sj content.m)
         author/(author author.m)
         sent/(time sent.m)
     ==
@@ -624,11 +532,11 @@
     |=  =reference:c
     %+  frond  -.reference
     ?-    -.reference
-        %post  (simple-post post.reference)
+        %post  (may simple-post post.reference)
         %reply
       %-  pairs
       :~  id-post+(id id-post.reference)
-          reply+(simple-reply reply.reference)
+          reply+(may simple-reply reply.reference)
       ==
     ==
   ::
@@ -642,18 +550,233 @@
   ::
   +|  %old
   ::
-  ++  v7
+  ++  v9  .
+  ++  v8
     |%
+    ++  channels
+      |=  channels=channels:v8:c
+      %-  pairs
+      %+  turn  ~(tap by channels)
+      |=  [n=nest:c ca=channel:v8:c]
+      [(nest-cord n) (channel ca)]
     ::
+    ++  channel
+      |=  channel=channel:v8:c
+      %-  pairs
+      :~  posts+(posts posts.channel)
+          count+(numb count.channel)
+          order+(order order.channel)
+          view+s+view.channel
+          sort+s+sort.channel
+          perms+(perm perm.channel)
+          meta+?~(meta.channel ~ s+u.meta.channel)
+      ==
+    ++  said
+      |=  s=said:v8:c
+      %-  pairs
+      :~  nest+(nest p.s)
+          reference+(reference q.s)
+      ==
+    ++  reference
+      |=  =reference:v8:c
+      %+  frond  -.reference
+      ?-    -.reference
+          %post  (simple-post post.reference)
+      ::
+          %reply
+        %-  pairs
+        :~  id-post+(id id-post.reference)
+            reply+(simple-reply reply.reference)
+        ==
+      ==
+    ++  posts
+      |=  =posts:v8:c
+      %-  pairs
+      %+  turn  (tap:on-posts:v8:c posts)
+      |=  [id=id-post:c post=(unit post:v8:c)]
+      [(scot %ud id) ?~(post ~ (^post u.post))]
+    ++  post
+      |=  [=seal:v8:c [rev=@ud =essay:v8:c]]
+      %-  pairs
+      :~  seal+(^seal seal)
+          revision+s+(scot %ud rev)
+          essay+(^essay essay)
+          type+s+%post
+      ==
+    ++  seal
+      |=  =seal:v8:c
+      %-  pairs
+      :~  id+(id id.seal)
+          seq+(numb seq.seal)
+          mod-at+(mod-at mod-at.seal)
+          reacts+(reacts reacts.seal)
+          replies+(replies replies.seal)
+          meta+(reply-meta reply-meta.seal)
+      ==
+    ++  replies
+      |=  =replies:v8:c
+      %-  pairs
+      %+  turn  (tap:on-replies:v8:c replies)
+      |=  [t=@da reply=(unit reply:c)]
+      [(scot %ud t) ?~(reply ~ (^reply +.reply))]
+    ::
+    ++  simple-posts
+      |=  posts=simple-posts:v8:c
+      %-  pairs
+      %+  turn  (tap:on-simple-posts:v8:c posts)
+      |=  [id=id-post:c post=(unit simple-post:v8:c)]
+      [(scot %ud id) ?~(post ~ (simple-post u.post))]
+    ++  simple-post
+      |=  sp=simple-post:v8:c
+      %-  pairs
+      :~  seal+(simple-seal -.sp)
+          essay+(essay +.sp)
+          type+s+%post
+      ==
+    ++  simple-seal
+      |=  seal=simple-seal:v8:c
+      %-  pairs
+      :~  id+(id id.seal)
+          reacts+(reacts reacts.seal)
+          replies+(simple-replies replies.seal)
+          meta+(reply-meta reply-meta.seal)
+      ==
+    ++  simple-replies
+      |=  replies=simple-replies:v8:c
+      %-  pairs
+      %+  turn  (tap:on-simple-replies:v8:c replies)
+      |=  [t=@da reply=simple-reply:c]
+      [(scot %ud t) (simple-reply reply)]
+    ++  simple-reply
+      |=  reply=simple-reply:v8:c
+      %-  pairs
+      :~  seal+(reply-seal -.reply)
+          memo+(memo +.reply)
+      ==
+    ++  paged-posts
+      |=  pn=paged-posts:v8:c
+      %-  pairs
+      :~  posts+(posts posts.pn)
+          newer+?~(newer.pn ~ (id u.newer.pn))
+          older+?~(older.pn ~ (id u.older.pn))
+          total+(numb total.pn)
+      ==
+    ++  channel-heads
+      |=  heads=channel-heads:v8:c
+      :-  %a
+      %+  turn  heads
+      |=  [=nest:c recency=^time latest=(unit post:v8:c)]
+      %-  pairs
+      :~  nest+(^nest nest)
+          recency+(time recency)
+          latest+?~(latest ~ (post u.latest))
+      ==
     ++  r-channels
-      |=  [=nest:c =r-channel:v7:old:c]
+      |=  [=nest:c =r-channel:v8:c]
       %-  pairs
       :~  nest+(^nest nest)
           response+(^r-channel r-channel)
       ==
     ::
     ++  r-channel
-      |=  =r-channel:v7:old:c
+      |=  =r-channel:v8:c
+      %+  frond  -.r-channel
+      ?-  -.r-channel
+        %posts    (posts posts.r-channel)
+        %post     (pairs id+(id id.r-channel) r-post+(r-post r-post.r-channel) ~)
+        %pending  (pending r-channel)
+        %order    (order order.r-channel)
+        %view     s+view.r-channel
+        %sort     s+sort.r-channel
+        %perm     (perm perm.r-channel)
+        %meta     ?~(meta.r-channel ~ s+u.meta.r-channel)
+      ::
+        %create   (perm perm.r-channel)
+        %join     (flag group.r-channel)
+        %leave    ~
+        %read     ~
+        %read-at  s+(scot %ud time.r-channel)
+        %watch    ~
+        %unwatch  ~
+      ==
+    ++  r-post
+      |=  =r-post:v8:c
+      %+  frond  -.r-post
+      ?-  -.r-post
+        %set    ?~(post.r-post ~ (post u.post.r-post))
+        %reacts  (reacts reacts.r-post)
+        %essay  (essay essay.r-post)
+      ::
+          %reply
+        %-  pairs
+        :~  id+(id id.r-post)
+            r-reply+(r-reply r-reply.r-post)
+            meta+(reply-meta reply-meta.r-post)
+        ==
+      ==
+    ++  r-reply
+      |=  =r-reply:v8:c
+      %+  frond  -.r-reply
+      ?-  -.r-reply
+        %set    ?~(reply.r-reply ~ (reply u.reply.r-reply))
+        %reacts  (reacts reacts.r-reply)
+      ==
+    ++  r-channel-simple-post
+      |=  r-channel=r-channel-simple-post:v8:c
+      %+  frond  -.r-channel
+      ?-  -.r-channel
+        %posts    (simple-posts posts.r-channel)
+        %post     (pairs id+(id id.r-channel) r-post+(r-simple-post r-post.r-channel) ~)
+        %pending  (pending r-channel)
+        %order    (order order.r-channel)
+        %view     s+view.r-channel
+        %sort     s+sort.r-channel
+        %perm     (perm perm.r-channel)
+        %meta     ?~(meta.r-channel ~ s+u.meta.r-channel)
+      ::
+        %create   (perm perm.r-channel)
+        %join     (flag group.r-channel)
+        %leave    ~
+        %read     ~
+        %read-at  s+(scot %ud time.r-channel)
+        %watch    ~
+        %unwatch  ~
+      ==
+    ++  r-simple-post
+      |=  r-post=r-simple-post:v8:c
+      %+  frond  -.r-post
+      ?-  -.r-post
+        %set    ?~(post.r-post ~ (simple-post u.post.r-post))
+        %reacts  (reacts reacts.r-post)
+        %essay  (essay essay.r-post)
+      ::
+          %reply
+        %-  pairs
+        :~  id+(id id.r-post)
+            r-reply+(r-simple-reply r-reply.r-post)
+            meta+(reply-meta reply-meta.r-post)
+        ==
+      ==
+    ++  r-simple-reply
+      |=  r-reply=r-simple-reply:v8:c
+      %+  frond  -.r-reply
+      ?-  -.r-reply
+        %set    ?~(reply.r-reply ~ (simple-reply u.reply.r-reply))
+        %reacts  (reacts reacts.r-reply)
+      ==
+    --
+  ++  v7
+    |%
+    ::
+    ++  r-channels
+      |=  [=nest:c =r-channel:v7:c]
+      %-  pairs
+      :~  nest+(^nest nest)
+          response+(^r-channel r-channel)
+      ==
+    ::
+    ++  r-channel
+      |=  =r-channel:v7:c
       %+  frond  -.r-channel
       ?-  -.r-channel
         %posts    (posts posts.r-channel)
@@ -674,7 +797,7 @@
       ==
     ::
     ++  r-post
-      |=  =r-post:v7:old:c
+      |=  =r-post:v7:c
       %+  frond  -.r-post
       ?-  -.r-post
         %set    ?~(post.r-post ~ (post u.post.r-post))
@@ -689,25 +812,33 @@
         ==
       ==
     ::
+    ++  r-reply
+      |=  =r-reply:v7:c
+      %+  frond  -.r-reply
+      ?-  -.r-reply
+        %set    ?~(reply.r-reply ~ (reply u.reply.r-reply))
+        %reacts  (reacts reacts.r-reply)
+      ==
+    ::
     ++  pending-msgs
-      |=  pm=pending-messages:v7:old:c
+      |=  pm=pending-messages:v7:c
       %-  pairs
       :~  posts+(pending-posts posts.pm)
           replies+(pending-replies replies.pm)
       ==
     ::
     ++  pending-posts
-      |=  pp=pending-posts:v7:old:c
+      |=  pp=pending-posts:v7:c
       %-  pairs
       %+  turn  ~(tap by pp)
-      |=  [cid=client-id:c es=essay:v7:old:c]
+      |=  [cid=client-id:c es=essay:v7:c]
       [(client-id-string cid) (essay es)]
     ::
     ++  pending-replies
-      |=  pr=pending-replies:v7:old:c
+      |=  pr=pending-replies:v7:c
       =/  replies
         %+  roll  ~(tap by pr)
-        |=  $:  [[top=id-post:c cid=client-id:c] mem=memo:v7:old:c]
+        |=  $:  [[top=id-post:c cid=client-id:c] mem=memo:v7:c]
                 rs=(map id-post:c (map client-id:c memo:c))
             ==
         ?.  (~(has by rs) top)  (~(put by rs) top (malt ~[[cid mem]]))
@@ -724,14 +855,14 @@
       [(client-id-string cid) (memo mem)]
     ::
     ++  pending
-      |=  =r-channel:v7:old:c
+      |=  =r-channel:v7:c
       ?>  ?=([%pending *] r-channel)
       %-  pairs
       :~  id+(client-id id.r-channel)
           pending+(r-pending r-pending.r-channel)
       ==
     ++  r-pending
-      |=  =r-pending:v7:old:c
+      |=  =r-pending:v7:c
       %+  frond  -.r-pending
       ?-  -.r-pending
         %post  (essay essay.r-pending)
@@ -744,14 +875,14 @@
         ==
       ==
     ++  channels
-      |=  =channels:v7:old:c
+      |=  =channels:v7:c
       %-  pairs
       %+  turn  ~(tap by channels)
-      |=  [n=nest:c ca=channel:v7:old:c]
+      |=  [n=nest:c ca=channel:v7:c]
       [(nest-cord n) (channel ca)]
     ::
     ++  channel
-      |=  =channel:v7:old:c
+      |=  =channel:v7:c
       %-  pairs
       :~  posts+(posts posts.channel)
           order+(order order.channel)
@@ -762,7 +893,7 @@
       ==
     ::
     ++  paged-posts
-      |=  pn=paged-posts:v7:old:c
+      |=  pn=paged-posts:v7:c
       %-  pairs
       :~  posts+(posts posts.pn)
           newer+?~(newer.pn ~ (id u.newer.pn))
@@ -770,14 +901,14 @@
           total+(numb total.pn)
       ==
     ++  posts
-      |=  =posts:v7:old:c
+      |=  =posts:v7:c
       %-  pairs
-      %+  turn  (tap:on-posts:v7:old:c posts)
-      |=  [id=id-post:c post=(unit post:v7:old:c)]
+      %+  turn  (tap:on-posts:v7:c posts)
+      |=  [id=id-post:c post=(unit post:v7:c)]
       [(scot %ud id) ?~(post ~ (^post u.post))]
     ::
     ++  post
-      |=  [=seal:v7:old:c [rev=@ud =essay:v7:old:c]]
+      |=  [=seal:v7:c [rev=@ud =essay:v7:c]]
       %-  pairs
       :~  seal+(^seal seal)
           revision+s+(scot %ud rev)
@@ -786,7 +917,7 @@
       ==
     ::
     ++  seal
-      |=  =seal:v7:old:c
+      |=  =seal:v7:c
       %-  pairs
       :~  id+(id id.seal)
           reacts+(reacts reacts.seal)
@@ -795,19 +926,28 @@
       ==
     ::
     ++  essay
-      |=  =essay:v7:old:c
+      |=  =essay:v7:c
       %-  pairs
-      :~  content+(story content.essay)
+      :~  content+(story:enjs:sj content.essay)
           author+(ship author.essay)
           sent+(time sent.essay)
           kind-data+(kind-data kind-data.essay)
       ==
     ::
+    ++  kind-data
+      |=  =kind-data:v7:old:c
+      %+  frond  -.kind-data
+      ?-    -.kind-data
+        %heap   ?~(title.kind-data ~ s+u.title.kind-data)
+        %chat   ?~(kind.kind-data ~ (pairs notice+~ ~))
+        %diary  (pairs title+s+title.kind-data image+s+image.kind-data ~)
+      ==
+    ::
     ++  channel-heads
-      |=  heads=channel-heads:v7:old:c
+      |=  heads=channel-heads:v7:c
       :-  %a
       %+  turn  heads
-      |=  [=nest:c recency=^time latest=(unit post:v7:old:c)]
+      |=  [=nest:c recency=^time latest=(unit post:v7:c)]
       %-  pairs
       :~  nest+(^nest nest)
           recency+(time recency)
@@ -815,22 +955,22 @@
       ==
     ::
     ++  reacts
-      |=  =reacts:v7:old:c
+      |=  =reacts:v7:c
       ^-  json
       %-  pairs
       %+  turn  ~(tap by reacts)
-      |=  [her=@p =react:v7:old:c]
+      |=  [her=@p =react:v7:c]
       [(scot %p her) s+react]
     ::
     ++  replies
-      |=  =replies:v7:old:c
+      |=  =replies:v7:c
       %-  pairs
-      %+  turn  (tap:on-replies:v7:old:c replies)
-      |=  [t=@da reply=(unit reply:v7:old:c)]
+      %+  turn  (tap:on-replies:v7:c replies)
+      |=  [t=@da reply=(unit reply:v7:c)]
       [(scot %ud t) ?~(reply ~ (^reply u.reply))]
     ::
     ++  reply
-      |=  [=reply-seal:v7:old:c [rev=@ud =memo:c]]
+      |=  [=reply-seal:v7:c [rev=@ud =memo:c]]
       %-  pairs
       :~  seal+(^reply-seal reply-seal)
           revision+s+(scot %ud rev)
@@ -838,7 +978,7 @@
       ==
     ::
     ++  reply-seal
-      |=  =reply-seal:v7:old:c
+      |=  =reply-seal:v7:c
       %-  pairs
       :~  id+(id id.reply-seal)
           parent-id+(id parent-id.reply-seal)
@@ -846,14 +986,14 @@
       ==
     ::
     ++  r-channels-simple-post
-      |=  [=nest:c =r-channel-simple-post:v7:old:c]
+      |=  [=nest:c =r-channel-simple-post:v7:c]
       %-  pairs
       :~  nest+(^nest nest)
           response+(^r-channel-simple-post r-channel-simple-post)
       ==
     ::
     ++  r-simple-post
-      |=  r-post=r-simple-post:v7:old:c
+      |=  r-post=r-simple-post:v7:c
       %+  frond  -.r-post
       ?-  -.r-post
         %set    ?~(post.r-post ~ (simple-post u.post.r-post))
@@ -869,7 +1009,7 @@
       ==
     ::
     ++  r-simple-reply
-      |=  r-reply=r-simple-reply:v7:old:c
+      |=  r-reply=r-simple-reply:v7:c
       %+  frond  -.r-reply
       ?-  -.r-reply
         %set    ?~(reply.r-reply ~ (simple-reply u.reply.r-reply))
@@ -877,21 +1017,21 @@
       ==
     ::
     ++  simple-posts
-      |=  posts=simple-posts:v7:old:c
+      |=  posts=simple-posts:v7:c
       %-  pairs
-      %+  turn  (tap:on-simple-posts:v7:old:c posts)
-      |=  [id=id-post:c post=(unit simple-post:v7:old:c)]
+      %+  turn  (tap:on-simple-posts:v7:c posts)
+      |=  [id=id-post:c post=(unit simple-post:v7:c)]
       [(scot %ud id) ?~(post ~ (simple-post u.post))]
     ::
     ++  simple-post
-      |=  [seal=simple-seal:v7:old:c =essay:v7:old:c]
+      |=  [seal=simple-seal:v7:c =essay:v7:c]
       %-  pairs
       :~  seal+(simple-seal seal)
           essay+(^essay essay)
           type+s+%post
       ==
     ++  simple-seal
-      |=  seal=simple-seal:v7:old:c
+      |=  seal=simple-seal:v7:c
       %-  pairs
       :~  id+(id id.seal)
           reacts+(reacts reacts.seal)
@@ -899,7 +1039,7 @@
           meta+(reply-meta reply-meta.seal)
       ==
     ++  paged-simple-posts
-      |=  pn=paged-simple-posts:v7:old:c
+      |=  pn=paged-simple-posts:v7:c
       %-  pairs
       :~  posts+(simple-posts posts.pn)
           newer+?~(newer.pn ~ (id u.newer.pn))
@@ -907,13 +1047,13 @@
           total+(numb total.pn)
       ==
     ++  simple-replies
-      |=  replies=simple-replies:v7:old:c
+      |=  replies=simple-replies:v7:c
       %-  pairs
-      %+  turn  (tap:on-simple-replies:v7:old:c replies)
-      |=  [t=@da reply=simple-reply:v7:old:c]
+      %+  turn  (tap:on-simple-replies:v7:c replies)
+      |=  [t=@da reply=simple-reply:v7:c]
       [(scot %ud t) (simple-reply reply)]
     ++  r-channel-simple-post
-      |=  r-channel=r-channel-simple-post:v7:old:c
+      |=  r-channel=r-channel-simple-post:v7:c
       %+  frond  -.r-channel
       ?-  -.r-channel
         %posts    (simple-posts posts.r-channel)
@@ -934,7 +1074,7 @@
       ==
     ::
     ++  reference
-      |=  =reference:v7:old:c
+      |=  =reference:v7:c
       %+  frond  -.reference
       ?-    -.reference
           %post  (simple-post post.reference)
@@ -946,7 +1086,7 @@
       ==
     ::
     ++  said
-      |=  s=said:v7:old:c
+      |=  s=said:v7:c
       ^-  json
       %-  pairs
       :~  nest/(nest p.s)
@@ -954,7 +1094,7 @@
       ==
     ::
     ++  reply-meta
-      |=  r=reply-meta:v7:old:c
+      |=  r=reply-meta:v7:c
       %-  pairs
       :~  'replyCount'^(numb reply-count.r)
           'lastReply'^?~(last-reply.r ~ (time u.last-reply.r))
@@ -965,14 +1105,14 @@
   ++  v1
     |%
     ++  channels
-      |=  =channels:v1:old:c
+      |=  =channels:v1:c
       %-  pairs
       %+  turn  ~(tap by channels)
-      |=  [n=nest:c ca=channel:v1:old:c]
+      |=  [n=nest:c ca=channel:v1:c]
       [(nest-cord n) (channel ca)]
     ::
     ++  channel
-      |=  =channel:v1:old:c
+      |=  =channel:v1:c
       %-  pairs
       :~  posts+(posts posts.channel)
           order+(order order.channel)
@@ -983,7 +1123,7 @@
       ==
     ::
     ++  paged-posts
-      |=  pn=paged-posts:v1:old:c
+      |=  pn=paged-posts:v1:c
       %-  pairs
       :~  posts+(posts posts.pn)
           newer+?~(newer.pn ~ (id u.newer.pn))
@@ -992,14 +1132,14 @@
       ==
     ::
     ++  posts
-      |=  =posts:v1:old:c
+      |=  =posts:v1:c
       %-  pairs
-      %+  turn  (tap:on-posts:v1:old:c posts)
-      |=  [id=id-post:c post=(unit post:v1:old:c)]
+      %+  turn  (tap:on-posts:v1:c posts)
+      |=  [id=id-post:c post=(unit post:v1:c)]
       [(scot %ud id) ?~(post ~ (^post u.post))]
     ::
     ++  seal
-      |=  =seal:v1:old:c
+      |=  =seal:v1:c
       %-  pairs
       :~  id+(id id.seal)
           reacts+(reacts reacts.seal)
@@ -1007,7 +1147,7 @@
           meta+(reply-meta reply-meta.seal)
       ==
     ++  post
-      |=  [=seal:v1:old:c [rev=@ud =essay:v7:old:c]]
+      |=  [=seal:v1:c [rev=@ud =essay:v7:c]]
       %-  pairs
       :~  seal+(^seal seal)
           revision+s+(scot %ud rev)
@@ -1016,10 +1156,10 @@
       ==
     ++  simple-post  simple-post:v7
     ++  replies
-      |=  =replies:v1:old:c
+      |=  =replies:v1:c
       %-  pairs
-      %+  turn  (tap:on-replies:v1:old:c replies)
-      |=  [t=@da =reply:v7:old:c]
+      %+  turn  (tap:on-replies:v1:c replies)
+      |=  [t=@da =reply:v7:c]
       [(scot %ud t) (reply:v7 reply)]
     --
   ::
@@ -1044,14 +1184,14 @@
       ==
     ::
     ++  posts
-      |=  =posts:v7:old:c
+      |=  =posts:v7:c
       %-  pairs
-      %+  turn  (tap:on-posts:v7:old:c posts)
-      |=  [id=id-post:c post=(unit post:v7:old:c)]
+      %+  turn  (tap:on-posts:v7:c posts)
+      |=  [id=id-post:c post=(unit post:v7:c)]
       [(scot %ud id) ?~(post ~ (^post u.post))]
     ::
     ++  post
-      |=  [=seal:v7:old:c [rev=@ud =essay:v7:old:c]]
+      |=  [=seal:v7:c [rev=@ud =essay:v7:c]]
       %-  pairs
       :~  seal+(^seal seal)
           revision+s+(scot %ud rev)
@@ -1060,11 +1200,11 @@
       ==
     ::
     ++  seal
-      |=  =seal:v7:old:c
+      |=  =seal:v7:c
       %-  pairs
       :~  id+(id id.seal)
           reacts+(reacts reacts.seal)
-          replies+(replies replies.seal)
+          replies+(replies:v7 replies.seal)
           meta+(reply-meta reply-meta.seal)
       ==
     --
@@ -1148,19 +1288,19 @@
     ==
   ++  memo
     %-  ot
-    :~  content/story
+    :~  content/story:dejs:sj
         author/author
         sent/di
     ==
   ++  essay
     ^-  $-(json essay:c)
     %+  cu
-      |=  $:  =story:c  =author:c  =time:z
+      |=  $:  =story:s  =author:c  =time:z
               kind=path  meta=(unit data:^^meta)  blob=(unit @t)
           ==
       `essay:c`[[story author time] kind meta blob]
     %-  ot
-    :~  content/story
+    :~  content/story:dejs:sj
         author/author
         sent/di
         ::
@@ -1174,7 +1314,7 @@
   ++  v7
     |%
     ++  a-channels
-      ^-  $-(json a-channels:v7:old:c)
+      ^-  $-(json a-channels:v7:c)
       %-  of
       :~  create+create-channel
           pin+(ar nest)
@@ -1182,7 +1322,7 @@
           toggle-post+post-toggle
       ==
     ++  create-channel
-      ^-  $-(json create-channel:v7:old:c)
+      ^-  $-(json create-channel:v7:c)
       %-  ot
       :~  kind+kind
           name+(se %tas)
@@ -1193,7 +1333,7 @@
           writers+(as (se %tas))
       ==
     ++  a-channel
-      ^-  $-(json a-channel:v7:old:c)
+      ^-  $-(json a-channel:v7:c)
       %-  of
       :~  join+flag
           leave+ul
@@ -1212,112 +1352,32 @@
     ::
     ++  memo
       %-  ot
-      :~  content/story
+      :~  content/story:v0:ver:dejs:sj
           author/ship
           sent/di
       ==
     ::
-    ++  story  (ar verse)
-    ++  verse
-      ^-  $-(json verse:v7:old:c)
-      %-  of
-      :~  block+block
-          inline+(ar inline)
-      ==
-    ::
-    ++  inline
-      |=  j=json
-      ^-  inline:v7:old:c
-      ?:  ?=([%s *] j)  p.j
-      =>  .(j `json`j)
-      %.  j
-      %-  of
-      :~  italics/(ar inline)
-          bold/(ar inline)
-          strike/(ar inline)
-          blockquote/(ar inline)
-          ship/ship
-          inline-code/so
-          code/so
-          tag/so
-          break/ul
-      ::
-        :-  %block
-        %-  ot
-        :~  index/ni
-            text/so
-        ==
-      ::
-        :-  %link
-        %-  ot
-        :~  href/so
-            content/so
-        ==
-      ::
-        :-  %task
-        %-  ot
-        :~  checked/bo
-            content/(ar inline)
-        ==
-      ==
-    ::
-    ++  listing
-      |=  j=json
-      ^-  listing:v7:old:c
-      %.  j
-      %-  of
-      :~
-        item/(ar inline)
-        :-  %list
-        %-  ot
-        :~  type/(su (perk %ordered %unordered %tasklist ~))
-            items/(ar listing)
-            contents/(ar inline)
-        ==
-      ==
-    ::
-    ++  block
-      ^-  $-(json block:v7:old:c)
-      %-  of
-      :~  rule/ul
-          cite/dejs:cite
-          listing/listing
-      ::
-        :-  %code
-        %-  ot
-        :~  code/so
-            lang/(se %tas)
-        ==
-      ::
-        :-  %header
-        %-  ot
-        :~  tag/(su (perk %h1 %h2 %h3 %h4 %h5 %h6 ~))
-            content/(ar inline)
-        ==
-      ::
-        :-  %image
-        %-  ot
-        :~  src/so
-            height/ni
-            width/ni
-            alt/so
-        ==
-      ==
-    ::
     ++  essay
-      ^-  $-(json essay:v7:old:c)
+      ^-  $-(json essay:v7:c)
       %+  cu
-        |=  [=story:v7:old:c =ship:z =time:z =kind-data:c]
-        `essay:v7:old:c`[[story ship time] kind-data]
+        |=  [=story:v7:c =ship:z =time:z =kind-data:v7:c]
+        `essay:v7:c`[[story ship time] kind-data]
       %-  ot
-      :~  content/story
+      :~  content/story:v0:dejs:sj
           author/ship
           sent/di
           kind-data/kind-data
       ==
+    ++  kind-data
+      ^-  $-(json kind-data:v7:c)
+      %-  of
+      :~  diary+(ot title+so image+so ~)
+          heap+(mu so)
+          chat+chat-kind
+      ==
     ::
     ++  a-post
-      ^-  $-(json a-post:v7:old:c)
+      ^-  $-(json a-post:v7:c)
       %-  of
       :~  add+essay
           edit+(ot id+id essay+essay ~)
@@ -1328,7 +1388,7 @@
       ==
     ::
     ++  a-reply
-      ^-  $-(json a-reply:v7:old:c)
+      ^-  $-(json a-reply:v7:c)
       %-  of
       :~  add+memo
           del+id
@@ -1365,116 +1425,11 @@
   ++  add-sects  (as (se %tas))
   ++  del-sects  (as so)
   ::
-  ++  story  (ar verse)
-  ::
-  ++  kind-data
-    ^-  $-(json kind-data:c)
-    %-  of
-    :~  diary+(ot title+so image+so ~)
-        heap+(mu so)
-        chat+chat-kind
-    ==
-  ::
   ++  chat-kind
     ^-  $-(json $@(~ [%notice ~]))
     |=  jon=json
     ?~  jon  ~
     ((of notice+ul ~) jon)
-  ::
-  ++  verse
-    ^-  $-(json verse:c)
-    %-  of
-    :~  block/block
-        inline/(ar inline)
-    ==
-  ::
-  ++  block
-    |=  j=json
-    ^-  block:c
-    %.  j
-    %-  of
-    :~  rule/ul
-        cite/dejs:cite
-        listing/listing
-    ::
-      :-  %code
-      %-  ot
-      :~  code/so
-          lang/(se %tas)
-      ==
-    ::
-      :-  %header
-      %-  ot
-      :~  tag/(su (perk %h1 %h2 %h3 %h4 %h5 %h6 ~))
-          content/(ar inline)
-      ==
-    ::
-      :-  %image
-      %-  ot
-      :~  src/so
-          height/ni
-          width/ni
-          alt/so
-      ==
-    ::
-      :-  %link
-      %-  ot
-      :~  url+so
-          meta+(om so)
-      ==
-    ==
-  ::
-  ++  listing
-    |=  j=json
-    ^-  listing:c
-    %.  j
-    %-  of
-    :~
-      item/(ar inline)
-      :-  %list
-      %-  ot
-      :~  type/(su (perk %ordered %unordered %tasklist ~))
-          items/(ar listing)
-          contents/(ar inline)
-      ==
-    ==
-  ::
-  ++  inline
-    |=  j=json
-    ^-  inline:c
-    ?:  ?=([%s *] j)  p.j
-    =>  .(j `json`j)
-    %.  j
-    %-  of
-    :~  italics/(ar inline)
-        bold/(ar inline)
-        strike/(ar inline)
-        blockquote/(ar inline)
-        ship/ship
-        sect/(maybe (se %tas))
-        inline-code/so
-        code/so
-        tag/so
-        break/ul
-    ::
-      :-  %block
-      %-  ot
-      :~  index/ni
-          text/so
-      ==
-    ::
-      :-  %link
-      %-  ot
-      :~  href/so
-          content/so
-      ==
-    ::
-      :-  %task
-      %-  ot
-      :~  checked/bo
-          content/(ar inline)
-      ==
-    ==
   ::
   ++  pins
     %-  ot

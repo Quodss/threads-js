@@ -1,11 +1,12 @@
 /-  spider
 /-  channels-sur=channels
-/-  chat-sur=chat
-/-  groups-sur=groups
+/-  groups-ver-sur=groups-ver
+/-  chat-ver-sur=chat-ver
 /+  sio=strandio
 /+  wasm=wasm-lia
 /+  mp=mop-extensions
 /+  cj=channel-json
+/+  sj=story-json
 /*  quick-js-wasm  %wasm  /quick-js-emcc/wasm
 ::
 =,  strand=strand:spider
@@ -40,7 +41,41 @@
 ::
 ::  External call arrows
 ::
-=>  |%
+=>  =*  v-sur-channels   v9:channels-sur
+    =*  flag             =>  v-sur-channels  flag
+    =*  nest             =>  v-sur-channels  nest
+    =*  channels         =>  v-sur-channels  channels
+    =*  channel          =>  v-sur-channels  channel
+    =*  post             =>  v-sur-channels  post
+    =*  posts            =>  v-sur-channels  posts
+    =*  memo             =>  v-sur-channels  memo
+    =*  on-posts         =>  v-sur-channels  on-posts
+    =*  reply-chan       =>  v-sur-channels  reply
+    =*  replies-chan     =>  v-sur-channels  replies
+    =*  on-replies-chan  =>  v-sur-channels  on-replies
+    =*  story            =>  v-sur-channels  story
+    =*  action-c         =>  v-sur-channels  a-channels
+    =*  mo-posts         ((mp time (each post tombstone:v-sur-channels)) lte)
+    ::
+    =*  v-sur-chat       v6:chat-ver-sur
+    =*  dm               =>  v-sur-chat  dm
+    =*  writ             =>  v-sur-chat  writ
+    =*  writs            =>  v-sur-chat  writs
+    =*  reply-dm         =>  v-sur-chat  reply
+    =*  replies-dm       =>  v-sur-chat  replies
+    =*  club             =>  v-sur-chat  club
+    =*  id-club          =>  v-sur-chat  id:club
+    =*  action-club      =>  v-sur-chat  action:club
+    =*  action-dm        =>  v-sur-chat  action:dm
+    =*  mo-writs         ((mp time (each writ tombstone:v-sur-chat)) lte)
+    ::
+    =*  v-sur-groups     v7:groups-ver-sur
+    =*  flag             =>  v-sur-groups  flag
+    =*  seat             =>  v-sur-groups  seat
+    =*  role-groups      =>  v-sur-groups  role-id
+    =*  action-g         =>  v-sur-groups  a-groups
+    ::
+    |%
     ++  ext
       |%
       ++  restart  (call-ext:arr %restart ~)
@@ -78,7 +113,7 @@
         (call-ext:arr %get-dm-messages vase+!>(her) vase+!>(n) ~)
       ::
       ++  get-club-messages
-        |=  [zem=id:club:chat-sur n=@]
+        |=  [zem=id-club n=@]
         (call-ext:arr %get-club-messages vase+!>(zem) vase+!>(n) ~)
       ::
       ++  get-dm-replies
@@ -86,7 +121,7 @@
         (call-ext:arr %get-dm-replies vase+!>(her) vase+!>(key) ~)
       ::
       ++  get-club-replies
-        |=  [zem=id:club:chat-sur key=time]
+        |=  [zem=id-club key=time]
         (call-ext:arr %get-club-replies vase+!>(zem) vase+!>(key) ~)
       ::
       ++  get-chan-replies
@@ -98,7 +133,7 @@
         (call-ext:arr %get-chan-members vase+!>(nest) ~)
       ::
       ++  get-club-members
-        |=  zem=id:club:chat-sur
+        |=  zem=id-club
         (call-ext:arr %get-club-members vase+!>(zem) ~)
       ::
       ++  get-roles
@@ -110,7 +145,7 @@
         (call-ext:arr %add-user-chan vase+!>(nest) vase+!>(her) ~)
       ::
       ++  add-user-club
-        |=  [zem=id:club:chat-sur her=@p]
+        |=  [zem=id-club her=@p]
         (call-ext:arr %add-user-club vase+!>(zem) vase+!>(her) ~)
       ::
       ++  kick-user-chan
@@ -134,7 +169,7 @@
         (call-ext:arr %send-dm vase+!>(her) vase+!>(post) ~)
       ::
       ++  send-club
-        |=  [zem=id:club:chat-sur post=story:channels-sur]
+        |=  [zem=id-club post=story:channels-sur]
         (call-ext:arr %send-club vase+!>(zem) vase+!>(post) ~)
       ::
       ++  post-reply
@@ -161,37 +196,6 @@
     ::  due to persistent memoization, so we offload scrying to threads
     ::
     ++  tm
-      =*  flag             flag:groups-sur
-      =*  nest             nest:channels-sur
-      =*  channels         channels:channels-sur
-      =*  channel          channel:channels-sur
-      =*  post             post:channels-sur
-      =*  posts            posts:channels-sur
-      =*  memo             memo:channels-sur
-      =*  mo-posts         ((mp time (unit post)) lte)
-      =*  on-posts         on-posts:channels-sur
-      =*  reply-chan       reply:channels-sur
-      =*  replies-chan     replies:channels-sur
-      =*  on-replies-chan  on-replies:channels-sur
-      =*  story            story:channels-sur
-      =*  action-c         a-channels:channels-sur
-      ::
-      =*  dm               dm:chat-sur
-      =*  writ             writ:chat-sur
-      =*  writs            writs:chat-sur
-      =*  reply-dm         reply:chat-sur
-      =*  replies-dm       replies:chat-sur
-      =*  mo-writs         ((mp time writ) lte)
-      =*  club             club:chat-sur
-      =*  id-club          id:club:chat-sur
-      =*  action-club      action:club:chat-sur
-      =*  action-dm        action:dm:chat-sur
-      ::
-      =*  flag             flag:groups-sur
-      =*  vessel           vessel:fleet:groups-sur
-      =*  sect-groups      sect:groups-sur
-      =*  action-g         action:v6:groups-sur
-      ::
       |%
       ::  +get-channels: get a list of all available channels
       ::
@@ -199,7 +203,7 @@
         =/  m  (strand (list nest))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  XX don't need full, tmp workaround for a scry bug in %channels
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         (pure:m ~(tap in ~(key by channels)))
       ::  +get-chan-messages: get a list of N last messages in a channel
@@ -209,17 +213,16 @@
         =/  m  (strand (list (pair time memo)))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)
+          (scry channels %gx %channels /v4/channels/full/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  =posts  posts.u.channel
-        =/  l=(list [time (unit post)])  (top:mo-posts posts n)
         %-  pure:m
-        %+  murn  l
-        |=  [t=time p=(unit post)]
+        %+  murn  (top:mo-posts posts n)
+        |=  [t=time p=(each post *)]
         ^-  (unit [time memo])
-        ?~  p  ~
-        `[t [content author sent]:u.p]
+        ?:  ?=(%| -.p)  ~
+        `[t [content author sent]:p.p]
       ::  +get-dm-messages: get a list of N last DMs in a chat
       ::
       ++  get-dm-messages
@@ -232,10 +235,13 @@
         ?~  dm=(~(get by dms) her)  (pure:m ~)
         =/  writs  wit.pact.u.dm
         %-  pure:m
-        %+  turn  (top:mo-writs writs n)
-        |=  [t=time w=writ]
-        ^-  [time memo]
-        [t [content author sent]:w]
+        %+  murn  (top:mo-writs writs n)
+        |=  [t=time w=(each writ *)]
+        ^-  (unit [time memo])
+        ?-  -.w
+          %&  `[t [content author sent]:p.w]
+          %|  ~
+        ==
       ::  +get-club-messages: get a list of N last DMs in a groupchat
       ::
       ++  get-club-messages
@@ -247,11 +253,15 @@
         ::
         ?~  club=(~(get by clubs) zem)  (pure:m ~)
         =/  writs  wit.pact.u.club
+        =/  l=(list [time (each writ *)])  (top:mo-writs writs n)
         %-  pure:m
-        %+  turn  (top:mo-writs writs n)
-        |=  [t=time w=writ]
-        ^-  [time memo]
-        [t [content author sent]:w]
+        %+  murn  l
+        |=  [t=time w=(each writ *)]
+        ^-  (unit [time memo])
+        ?-  -.w
+          %&  `[t [content author sent]:p.w]
+          %|  ~
+        ==
       ::  +get-dm-replies: get thread replies to a DM
       ::
       ++  get-dm-replies
@@ -264,12 +274,14 @@
         ?~  dm=(~(get by dms) her)  (pure:m ~)
         =/  wits  wit.pact.u.dm
         ?~  writ=(get:on:writs wits key)  (pure:m ~)
+        ?:  ?=(%| -.u.writ)  (pure:m ~)
         =/  reps=replies-dm  replies.u.writ
         %-  pure:m
-        %+  turn  (tap:on:replies-dm reps)
-        |=  [time r=reply-dm]
-        ^-  memo
-        [content author sent]:r
+        %+  murn  (tap:on:replies-dm reps)
+        |=  [time r=(each reply-dm *)]
+        ^-  (unit memo)
+        ?:  ?=(%| -.r)  ~
+        `[content author sent]:p.r
       ::  +get-club-replies: get thread replies to a groupchat DM
       ::
       ++  get-club-replies
@@ -282,12 +294,14 @@
         ?~  club=(~(get by clubs) zem)  (pure:m ~)
         =/  wits  wit.pact.u.club
         ?~  writ=(get:on:writs wits key)  (pure:m ~)
+        ?:  ?=(%| -.u.writ)  (pure:m ~)
         =/  reps=replies-dm  replies.u.writ
         %-  pure:m
-        %+  turn  (tap:on:replies-dm reps)
-        |=  [time r=reply-dm]
-        ^-  memo
-        [content author sent]:r
+        %+  murn  (tap:on:replies-dm reps)
+        |=  [time r=(each reply-dm *)]
+        ^-  (unit memo)
+        ?:  ?=(%| -.r)  ~
+        `[content author sent]:p.r
       ::  +get-chan-replies: get thread replies to a channel post
       ::
       ++  get-chan-replies
@@ -295,19 +309,19 @@
         =/  m  (strand (list memo))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)
+          (scry channels %gx %channels /v4/channels/full/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  =posts  posts.u.channel
         ?~  pot=(get:on-posts posts key)  (pure:m ~)
-        ?~  u.pot  (pure:m ~)
-        =/  reps=replies-chan  replies.u.u.pot
+        ?:  ?=(%| -.u.pot)  (pure:m ~)
+        =/  reps=replies-chan  replies.u.pot
         %-  pure:m
         %+  murn  (tap:on-replies-chan reps)
-        |=  [time r=(unit reply-chan)]
+        |=  [time r=(each reply-chan *)]
         ^-  (unit memo)
-        ?~  r  ~
-        `[content author sent]:u.r
+        ?:  ?=(%| -.r)  ~
+        `[content author sent]:p.r
       ::  +get-chan-members: get members of a group where the channel is located
       ::
       ++  get-chan-members
@@ -315,12 +329,12 @@
         =/  m  (strand (set ship))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  XX full is tmp workaround
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         %:  scry  (set ship)  %gx  %groups
-          /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+          /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
         ==
       ::  +get-club-members: get members of a groupchat
       ::
@@ -337,25 +351,20 @@
       ::
       ++  get-roles
         |=  [=nest her=@p]
-        =/  m  (strand (set sect-groups))
+        =/  m  (strand (set role-groups))
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
-        ;<  members=(set ship)  bind:m
-          %:  scry  (set ship)  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+        ;<  vessel=(unit seat)  bind:m
+          %:  scry  (unit seat)  %gx  %groups
+            /v2/groups/(scot %p p.group)/[q.group]/seats/(scot %p her)/noun
           ==
         ::
-        ?.  (~(has in members) her)  (pure:m ~)
-        ;<  =vessel  bind:m
-          %:  scry  vessel  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/(scot %p her)/vessel/noun
-          ==
-        ::
-        (pure:m sects.vessel)
+        ?~  vessel  (pure:m ~)
+        (pure:m roles.u.vessel)
       ::  pokes
       ::
       ::  +add-user-chan: invite a user to the group of a channel
@@ -371,12 +380,12 @@
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
           %:  scry  (set ship)  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+            /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
         ::
         ?:  (~(has in members) her)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-g  [group now.bol fleet+[[her ~ ~] add+~]]
+        =/  act=action-g  [%group group seat+[[her ~ ~] add+~]]
         (poke:sio [our.bol %groups] group-action-4+!>(act))
       ::  +add-user-club: invite a user to a groupchat
       ::
@@ -407,18 +416,18 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
           %:  scry  (set ship)  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+            /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
         ::
         ?.  (~(has in members) her)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-g  [group now.bol fleet+[[her ~ ~] del+~]]
+        =/  act=action-g  [%group group seat+[[her ~ ~] del+~]]
         (poke:sio [our.bol %groups] group-action-4+!>(act))
       ::  +give-role: assign a role to a user in the group of a chat
       ::
@@ -427,18 +436,18 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
           %:  scry  (set ship)  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+            /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
         ::
         ?.  (~(has in members) her)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-g  [group now.bol fleet+[[her ~ ~] add-sects+[role ~ ~]]]
+        =/  act=action-g  [%group group seat+[[her ~ ~] add-roles+[role ~ ~]]]
         (poke:sio [our.bol %groups] group-action-4+!>(act))
       ::  +give-role: strip a role from a user in the group of a chat
       ::
@@ -447,18 +456,18 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
           %:  scry  (set ship)  %gx  %groups
-            /groups/(scot %p p.group)/[q.group]/fleet/ships/noun
+            /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
         ::
         ?.  (~(has in members) her)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
-        =/  act=action-g  [group now.bol fleet+[[her ~ ~] del-sects+[role ~ ~]]]
+        =/  act=action-g  [%group group seat+[[her ~ ~] del-roles+[role ~ ~]]]
         (poke:sio [our.bol %groups] group-action-4+!>(act))
       ::  +post-chan: post in a channel
       ::
@@ -467,7 +476,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
@@ -523,7 +532,7 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         ;<  bol=bowl:rand  bind:m  get-bowl:sio
@@ -608,7 +617,7 @@
         ::
         |=  *
         ^-  form:m
-        ;<  l=(list nest:channels-sur)  bind:m  get-channels:tm
+        ;<  l=(list nest)  bind:m  get-channels:tm
         (pure:m vase+!>(l) ~)
       ::
           %get-chan-messages
@@ -617,8 +626,8 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(n=@ q.l)]
-        ;<  l=(list [time memo:channels-sur])  bind:m
+        =+  [!<(=nest p.l) !<(n=@ q.l)]
+        ;<  l=(list [time memo])  bind:m
           (get-chan-messages:tm nest n)
         ::
         (pure:m vase+!>(l) ~)
@@ -630,7 +639,7 @@
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
         =+  [!<(her=@p p.l) !<(n=@ q.l)]
-        ;<  l=(list [time memo:channels-sur])  bind:m
+        ;<  l=(list [time memo])  bind:m
           (get-dm-messages:tm her n)
         ::
         (pure:m vase+!>(l) ~)
@@ -641,8 +650,8 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(zem=id:club:chat-sur p.l) !<(n=@ q.l)]
-        ;<  l=(list [time memo:channels-sur])  bind:m
+        =+  [!<(zem=id-club p.l) !<(n=@ q.l)]
+        ;<  l=(list [time memo])  bind:m
           (get-club-messages:tm zem n)
         ::
         (pure:m vase+!>(l) ~)
@@ -654,7 +663,7 @@
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
         =+  [!<(her=@p p.l) !<(key=time q.l)]
-        ;<  l=(list memo:channels-sur)  bind:m  (get-dm-replies:tm her key)
+        ;<  l=(list memo)  bind:m  (get-dm-replies:tm her key)
         (pure:m vase+!>(l) ~)
       ::
           %get-club-replies
@@ -663,8 +672,8 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(zem=id:club:chat-sur p.l) !<(key=time q.l)]
-        ;<  l=(list memo:channels-sur)  bind:m  (get-club-replies:tm zem key)
+        =+  [!<(zem=id-club p.l) !<(key=time q.l)]
+        ;<  l=(list memo)  bind:m  (get-club-replies:tm zem key)
         (pure:m vase+!>(l) ~)
       ::
           %get-chan-replies
@@ -673,8 +682,8 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(key=time q.l)]
-        ;<  l=(list memo:channels-sur)  bind:m  (get-chan-replies:tm nest key)
+        =+  [!<(=nest p.l) !<(key=time q.l)]
+        ;<  l=(list memo)  bind:m  (get-chan-replies:tm nest key)
         (pure:m vase+!>(l) ~)
       ::
           %get-chan-members
@@ -683,7 +692,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] ~] l)
-        =+  !<(=nest:channels-sur p.l)
+        =+  !<(=nest p.l)
         ;<  s=(set ship)  bind:m  (get-chan-members:tm nest)
         (pure:m vase+!>(s) ~)
       ::
@@ -692,7 +701,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] ~] l)
-        =+  !<(zem=id:club:chat-sur p.l)
+        =+  !<(zem=id-club p.l)
         ;<  s=(set ship)  bind:m  (get-club-members:tm zem)
         (pure:m vase+!>(s) ~)
       ::
@@ -702,7 +711,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(her=@p q.l)]
+        =+  [!<(=nest p.l) !<(her=@p q.l)]
         ;<  s=(set @tas)  bind:m  (get-roles:tm nest her)
         (pure:m vase+!>(s) ~)
       ::
@@ -712,7 +721,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(her=@p q.l)]
+        =+  [!<(=nest p.l) !<(her=@p q.l)]
         (add-user-chan:tm nest her)
       ::
           %add-user-club
@@ -721,7 +730,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(zem=id:club:chat-sur p.l) !<(her=@p q.l)]
+        =+  [!<(zem=id-club p.l) !<(her=@p q.l)]
         (add-user-club:tm zem her)
       ::
           %kick-user-chan
@@ -730,7 +739,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(her=@p q.l)]
+        =+  [!<(=nest p.l) !<(her=@p q.l)]
         (kick-user-chan:tm nest her)
       ::
           %give-role
@@ -739,7 +748,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] [%vase r=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(her=@p q.l) !<(role=term r.l)]
+        =+  [!<(=nest p.l) !<(her=@p q.l) !<(role=term r.l)]
         (give-role:tm nest her role)
       ::
           %remove-role
@@ -748,7 +757,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] [%vase r=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(her=@p q.l) !<(role=term r.l)]
+        =+  [!<(=nest p.l) !<(her=@p q.l) !<(role=term r.l)]
         (remove-role:tm nest her role)
       ::
           %post-chan
@@ -757,7 +766,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(=nest:channels-sur p.l) !<(post=story:channels-sur q.l)]
+        =+  [!<(=nest p.l) !<(post=story q.l)]
         (post-chan:tm nest post)
       ::
           %send-dm
@@ -766,7 +775,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(her=@p p.l) !<(post=story:channels-sur q.l)]
+        =+  [!<(her=@p p.l) !<(post=story q.l)]
         (send-dm:tm her post)
       ::
           %send-club
@@ -775,7 +784,7 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] ~] l)
-        =+  [!<(zem=id:club:chat-sur p.l) !<(post=story:channels-sur q.l)]
+        =+  [!<(zem=id-club p.l) !<(post=story q.l)]
         (send-club:tm zem post)
       ::
           %post-reply
@@ -784,9 +793,9 @@
         |=  l=(pole lv)
         ^-  form:m
         ?>  ?=([[%vase p=*] [%vase q=*] [%vase r=*] ~] l)
-        =+  :+  !<(=nest:channels-sur p.l)
+        =+  :+  !<(=nest p.l)
               !<(key=time q.l)
-            !<(post=story:channels-sur r.l)
+            !<(post=story r.l)
         ::
         (post-reply:tm nest key post)
       ::
@@ -1791,7 +1800,7 @@
         |=  m=memo:channels-sur
         ^-  json
         %-  pairs
-        :~  content/(story:enjs:cj content.m)
+        :~  content/(story:enjs:sj content.m)
             author/(ship ?@(a=author.m a ship.a))
             sent/(time sent.m)
         ==
@@ -1810,7 +1819,7 @@
       ++  memo
         ^-  $-(json memo:channels-sur)
         %-  ot
-        :~  content+story:dejs:cj
+        :~  content+story:dejs:sj
             author+ship
             sent+di
         ==
@@ -1828,7 +1837,7 @@
       ::
       |%
       ++  rule-ship-club
-        %+  cook  |=((each @p id:club:chat-sur) +<)
+        %+  cook  |=((each @p id-club) +<)
         ;~  pose
           (stag %& ;~(pfix sig fed:ag))
           (stag %| sym)
@@ -2219,6 +2228,7 @@
       =,  arr  =,  args
       ;<  acc=acc-mold  try:m  get-acc
       =/  arrow=$-([@ @ @ @] (script-form @ acc-mold))
+        ~+
         ?+  magic-w.args  !!
         ::  put JS imports here
         ::

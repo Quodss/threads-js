@@ -15,7 +15,7 @@
 ::    commands _may_ become updates,
 ::    updates _may_ become responses.
 ::
-/-  g=groups, c=cite, m=meta
+/-  gv=groups-ver, c=cite, s=story, m=meta
 /+  mp=mop-extensions
 |%
 +|  %ancients
@@ -73,16 +73,16 @@
 ::
 +$  v-post      [v-seal (rev essay)]
 +$  id-post     time
-+$  v-posts     ((mop id-post (unit v-post)) lte)
-++  on-v-posts  ((on id-post (unit v-post)) lte)
-++  mo-v-posts  ((mp id-post (unit v-post)) lte)
++$  v-posts     ((mop id-post (may v-post)) lte)
+++  on-v-posts  ((on id-post (may v-post)) lte)
+++  mo-v-posts  ((mp id-post (may v-post)) lte)
 ::  $v-reply: a post comment
 ::
 +$  v-reply       [v-reply-seal (rev memo)]
 +$  id-reply      time
-+$  v-replies     ((mop id-reply (unit v-reply)) lte)
-++  on-v-replies  ((on id-reply (unit v-reply)) lte)
-++  mo-v-replies  ((mp id-reply (unit v-reply)) lte)
++$  v-replies     ((mop id-reply (may v-reply)) lte)
+++  on-v-replies  ((on id-reply (may v-reply)) lte)
+++  mo-v-replies  ((mp id-reply (may v-reply)) lte)
 ::  $v-seal: host-side data for a post
 ::
 +$  v-seal  $+  channel-seal
@@ -117,13 +117,10 @@
       last-repliers=(set author)
       last-reply=(unit time)
   ==
-::  $kind-data: metadata for a channel type's "post"
-::
-+$  kind-data
-  $%  [%diary title=@t image=@t]
-      [%heap title=(unit @t)]
-      [%chat kind=$@(~ [%notice ~])]
-  ==
++$  story  story:s
++$  verse  verse:s
++$  inline  inline:s
++$  listing  listing:s
 ::  $author: post author
 +$  author  $@(ship bot-meta)
 ::  $bot-meta: bot metadata
@@ -143,78 +140,6 @@
       =author
       sent=time
   ==
-::  $story: post body content
-::
-+$  story  (list verse)
-::  $verse: a chunk of post content
-::
-::    blocks stand on their own. inlines come in groups and get wrapped
-::    into a paragraph
-::
-+$  verse
-  $%  [%block p=block]
-      [%inline p=(list inline)]
-  ==
-::  $listing: recursive type for infinitely nested <ul> or <ol>
-+$  listing
-  $%  [%list p=?(%ordered %unordered %tasklist) q=(list listing) r=(list inline)]
-      [%item p=(list inline)]
-  ==
-::  $block: post content that sits outside of the normal text
-::
-::    %image: a visual, we record dimensions for better rendering
-::    %cite: an Urbit reference
-::    %header: a traditional HTML heading, h1-h6
-::    %listing: a traditional HTML list, ul and ol
-::    %code: a block of code
-::    %link: a link, with metadata for rendering a preview card
-::
-+$  block  $+  channel-block
-  $%  [%image src=cord height=@ud width=@ud alt=cord]
-      [%cite =cite:c]
-      [%header p=?(%h1 %h2 %h3 %h4 %h5 %h6) q=(list inline)]
-      [%listing p=listing]
-      [%rule ~]
-      [%code code=cord lang=cord]
-      [%link url=@t meta=(map ?(link-meta-key @t) @t)]
-  ==
-::  $link-meta-key: known-good %link $block meta keys
-::
-+$  link-meta-key
-  ?(%title %description %image %site-name %site-icon)
-::  $inline: post content that flows within a paragraph
-::
-::    @t: plain text
-::    %italics: italic text
-::    %bold: bold text
-::    %strike: strikethrough text
-::    %inline-code: code formatting for small snippets
-::    %blockquote: blockquote surrounded content
-::    %block: link/reference to blocks
-::    %ship: mention/reference to a ship
-::    %sect: mention/reference to a sect of users, ~ signifies everyone
-::    %code: code formatting for large snippets
-::    %tag: tag gets special signifier
-::    %link: link to a URL with a face
-::    %break: line break
-::
-+$  inline  $+  channel-inline
-  $@  @t
-  $%  [%italics p=(list inline)]
-      [%bold p=(list inline)]
-      [%strike p=(list inline)]
-      [%blockquote p=(list inline)]
-      [%inline-code p=cord]
-      [%code p=cord]
-      [%ship p=ship]
-      [%sect p=?(~ sect:g)]
-      [%block p=@ud q=cord]
-      [%tag p=cord]
-      [%link p=cord q=cord]
-      [%task p=?(%.y %.n) q=(list inline)]
-      [%break ~]
-  ==
-::
 +$  kind  ?(%diary %heap %chat)
 ::  $nest: identifier for a channel
 +$  nest  [=kind =ship name=term]
@@ -251,9 +176,10 @@
   ==
 ::  $scan: search results
 +$  scan  (list reference)
+::TODO  unitize? must handle "unknown" results
 +$  reference
-  $%  [%post post=simple-post]
-      [%reply =id-post reply=simple-reply]
+  $%  [%post post=(may simple-post)]
+      [%reply =id-post reply=(may simple-reply)]
   ==
 ::  $said: used for references
 +$  said  (pair nest reference)
@@ -294,8 +220,8 @@
 ::  pointer back to the group it belongs to.
 ::
 +$  perm
-  $:  writers=(set sect:g)
-      group=flag:g
+  $:  writers=(set sect:v0:gv)
+      group=flag:gv
   ==
 ::
 ::  $log: a time ordered history of modifications to a channel
@@ -316,13 +242,25 @@
 +$  create-channel
   $:  =kind
       name=term
-      group=flag:g
+      group=flag:gv
       title=cord
       description=cord
       meta=(unit @t)
-      readers=(set sect:g)
-      writers=(set sect:g)
+      readers=(set sect:v0:gv)
+      writers=(set sect:v0:gv)
   ==
+::
+++  may
+  |$  [data]
+  ::NOTE  not +each, avoids p= faces for better ergonomics
+  $%([%& data] [%| tombstone])
++$  tombstone
+  $:  id=?(id-post id-reply)  ::NOTE  the same type, how convenient!
+      =author
+      seq=@ud  ::NOTE  0 for replies, but we may need them later™
+      del-at=@da
+  ==
+::
 ++  rev
   |$  [data]
   [rev=@ud data]
@@ -356,7 +294,7 @@
       [%toggle-post toggle=post-toggle]
   ==
 +$  a-channel
-  $%  [%join group=flag:g]
+  $%  [%join group=flag:gv]
       [%leave ~]
       a-remark
       c-channel
@@ -385,8 +323,8 @@
       [%sort =sort]
       [%meta meta=(unit @t)]
       [%order order=arranged-posts]
-      [%add-writers sects=(set sect:g)]
-      [%del-writers sects=(set sect:g)]
+      [%add-writers sects=(set sect:v0:gv)]
+      [%del-writers sects=(set sect:v0:gv)]
   ==
 ::
 +$  c-post
@@ -424,7 +362,7 @@
   ==
 ::
 +$  u-post
-  $%  [%set post=(unit v-post)]
+  $%  [%set post=(may v-post)]
       [%reacts reacts=v-reacts]
       ::XX make it a standard to always face rev value
       [%essay (rev =essay)]
@@ -432,7 +370,7 @@
   ==
 ::
 +$  u-reply
-  $%  [%set reply=(unit v-reply)]
+  $%  [%set reply=(may v-reply)]  ::TODO  no %essay, inconsistent w/ $u-post
       [%reacts reacts=v-reacts]
   ==
 ::
@@ -451,13 +389,13 @@
       [%perm =perm]
       [%meta meta=(unit @t)]
       [%create =perm]
-      [%join group=flag:g]
+      [%join group=flag:gv]
       [%leave ~]
       a-remark
   ==
 ::
 +$  r-post
-  $%  [%set post=(unit post)]
+  $%  [%set post=(may post)]
       [%reply id=id-reply =reply-meta =r-reply]
       [%reacts =reacts]
       [%essay =essay]
@@ -468,7 +406,7 @@
       [%reply top=id-post =reply-meta =memo]
   ==
 +$  r-reply
-  $%  [%set reply=(unit reply)]
+  $%  [%set reply=(may reply)]
       [%reacts =reacts]
   ==
 ::
@@ -481,13 +419,13 @@
 ::
 +$  r-simple-post
   $%  $<(?(%set %reply) r-post)
-      [%set post=(unit simple-post)]
+      [%set post=(may simple-post)]
       [%reply id=id-reply =reply-meta r-reply=r-simple-reply]
   ==
 ::
 +$  r-simple-reply
   $%  $<(%set r-reply)
-      [%set reply=(unit simple-reply)]
+      [%set reply=(may simple-reply)]
   ==
 ::  versions of backend types with their revision numbers stripped,
 ::  because the frontend shouldn't care to learn those.
@@ -520,26 +458,28 @@
         =remark
     ==
   --
-+$  channel-heads  (list [=nest recency=time latest=(unit post)])
++$  channel-heads  (list [=nest recency=time latest=(may post)])
 +$  paged-posts
   $:  =posts
       newer=(unit time)
       older=(unit time)
+      newest=@ud
       total=@ud
   ==
 +$  paged-simple-posts
   $:  posts=simple-posts
       newer=(unit time)
       older=(unit time)
+      newest=@ud
       total=@ud
   ==
-+$  posts  ((mop id-post (unit post)) lte)
-+$  simple-posts  ((mop id-post (unit simple-post)) lte)
++$  posts  ((mop id-post (may post)) lte)
++$  simple-posts  ((mop id-post (may simple-post)) lte)
 +$  post   [seal [rev=@ud essay]]
 +$  simple-post  [simple-seal essay]
 +$  seal
   $:  id=id-post
-      seq=@ud
+      seq=@ud  ::NOTE  starts at 1, 0 indicates bad migration/broken state
       mod-at=@da
       =reacts
       =replies
@@ -547,6 +487,8 @@
   ==
 +$  simple-seal
   $:  id=id-post
+      seq=@ud
+      mod-at=@da
       =reacts
       replies=simple-replies
       =reply-meta
@@ -554,16 +496,209 @@
 +$  reacts      (map author react)
 +$  reply       [reply-seal (rev memo)]
 +$  simple-reply  [reply-seal memo]
-+$  replies     ((mop id-reply (unit reply)) lte)
++$  replies     ((mop id-reply (may reply)) lte)
 +$  simple-replies     ((mop id-reply simple-reply) lte)
 +$  reply-seal  [id=id-reply parent-id=id-post =reacts]
-++  on-posts    ((on id-post (unit post)) lte)
-++  on-simple-posts    ((on id-post (unit simple-post)) lte)
-++  on-replies  ((on id-reply (unit reply)) lte)
+++  on-posts    ((on id-post (may post)) lte)
+++  on-simple-posts    ((on id-post (may simple-post)) lte)
+++  on-replies  ((on id-reply (may reply)) lte)
 ++  on-simple-replies  ((on id-reply simple-reply) lte)
+++  v9  v9:old
+++  v8  v8:old
+++  v7  v7:old
+++  v6  v6:old
+++  v1  v1:old
 ++  old
   |%
+  ++  v9  .
+  ++  v8
+    =,  v9
+    |%
+    +$  v-channels  (map nest v-channel)
+    ++  v-channel
+      |^  ,[global local]
+      ::  $global: should be identical between ships
+      ::
+      +$  global
+        $:  posts=v-posts
+            ::  .count: number of posts, for sequence nr generation
+            count=@ud
+            order=(rev order=arranged-posts)
+            view=(rev =view)
+            sort=(rev =sort)
+            perm=(rev =perm)
+            meta=(rev meta=(unit @t))
+        ==
+      ::  $window: sparse set of time ranges
+      ::
+      ::TODO  populate this
+      +$  window  (list [from=time to=time])
+      ::  .window: time range for requested posts that we haven't received
+      ::  .diffs: diffs for posts in the window, to apply on receipt
+      ::
+      +$  future
+        [=window diffs=(jug id-post u-post)]
+      ::  $local: local-only information
+      ::
+      +$  local
+        $:  =net
+            =log
+            =remark
+            =window
+            =future
+            pending=pending-messages
+            =last-updated
+        ==
+      --
+    +$  v-seal
+      $:  id=id-post
+          seq=@ud
+          mod-at=@da
+          replies=v-replies
+          reacts=v-reacts
+      ==
+    +$  v-post      [v-seal (rev essay)]
+    +$  v-posts     ((mop id-post (unit v-post)) lte)
+    ++  on-v-posts  ((on id-post (unit v-post)) lte)
+    ++  mo-v-posts  ((mp id-post (unit v-post)) lte)
+    +$  v-replies     ((mop id-reply (unit v-reply)) lte)
+    ++  on-v-replies  ((on id-reply (unit v-reply)) lte)
+    ++  mo-v-replies  ((mp id-reply (unit v-reply)) lte)
+    ::
+    +$  channels  (map nest channel)
+    ++  channel
+      |^  ,[global local]
+      +$  global
+        $:  =posts
+            ::  .count: number of posts, for sequence nr generation
+            count=@ud
+            order=arranged-posts
+            =view
+            =sort
+            =perm
+            meta=(unit @t)
+        ==
+      ::
+      +$  local
+        $:  =net
+            =remark
+            pending=pending-messages
+        ==
+      --
+    +$  seal
+      $:  id=id-post
+          seq=@ud
+          mod-at=@da
+          =reacts
+          =replies
+          =reply-meta
+      ==
+    +$  simple-seal
+      $:  id=id-post
+          =reacts
+          replies=simple-replies
+          =reply-meta
+      ==
+    +$  post  [seal [rev=@ud essay]]
+    +$  posts  ((mop id-post (unit post)) lte)
+    +$  simple-post  [simple-seal essay]
+    +$  simple-posts  ((mop id-post (unit simple-post)) lte)
+    +$  replies     ((mop id-reply (unit reply)) lte)
+    +$  simple-replies     ((mop id-reply simple-reply) lte)  ::REMOVEME ?
+    ++  on-posts    ((on id-post (unit post)) lte)
+    ++  on-simple-posts    ((on id-post (unit simple-post)) lte)
+    ++  on-replies  ((on id-reply (unit reply)) lte)
+    ++  on-simple-replies  ((on id-reply simple-reply) lte)
+    +$  log     ((mop time u-channel) lte)
+    ++  log-on  ((on time u-channel) lte)
+    ++  mo-log  ((mp time u-channel) lte)
+    +$  scam
+      $:  last=(unit id-post)  ::  last (top-level) message that was searched
+          =scan                ::  search results
+      ==
+    +$  scan  (list reference)
+    +$  reference
+      $%  [%post post=simple-post]
+          [%reply =id-post reply=simple-reply]
+      ==
+    +$  said  (pair nest reference)
+    +$  channel-heads  (list [=nest recency=time latest=(unit post)])
+    +$  paged-posts
+      $:  =posts
+          newer=(unit time)
+          older=(unit time)
+          total=@ud
+      ==
+    +$  paged-simple-posts
+      $:  posts=simple-posts
+          newer=(unit time)
+          older=(unit time)
+          total=@ud
+      ==
+    +$  update   [=time =u-channel]
+    +$  u-channels  [=nest =u-channel]
+    +$  u-channel
+      $%  [%create =perm meta=(unit @t)]
+          [%order (rev order=arranged-posts)]
+          [%view (rev =view)]
+          [%sort (rev =sort)]
+          [%perm (rev =perm)]
+          [%meta (rev meta=(unit @t))]
+          [%post id=id-post =u-post]
+      ==
+    +$  u-post
+      $%  [%set post=(unit v-post)]
+          [%reacts reacts=v-reacts]
+          [%essay (rev =essay)]
+          [%reply id=id-reply =u-reply]
+      ==
+    +$  u-reply
+      $%  [%set reply=(unit v-reply)]
+          [%reacts reacts=v-reacts]
+      ==
+    +$  r-channels  [=nest =r-channel]
+    +$  r-channel
+      $%  [%posts =posts]
+          [%post id=id-post =r-post]
+          [%pending id=client-id =r-pending]
+          [%order order=arranged-posts]
+          [%view =view]
+          [%sort =sort]
+          [%perm =perm]
+          [%meta meta=(unit @t)]
+          [%create =perm]
+          [%join group=flag:gv]
+          [%leave ~]
+          a-remark
+      ==
+    +$  r-channels-simple-post  [=nest =r-channel-simple-post]
+    +$  r-channel-simple-post
+      $%  $<(?(%posts %post) r-channel)
+          [%posts posts=simple-posts]
+          [%post id=id-post r-post=r-simple-post]
+      ==
+    +$  r-post
+      $%  [%set post=(unit post)]
+          [%reply id=id-reply =reply-meta =r-reply]
+          [%reacts =reacts]
+          [%essay =essay]
+      ==
+    +$  r-reply
+      $%  [%set reply=(unit reply)]
+          [%reacts =reacts]
+      ==
+    +$  r-simple-post
+      $%  $<(?(%set %reply) r-post)
+          [%set post=(unit simple-post)]
+          [%reply id=id-reply =reply-meta r-reply=r-simple-reply]
+      ==
+    +$  r-simple-reply
+      $%  $<(%set r-reply)
+          [%set reply=(unit simple-reply)]
+      ==
+    --
   ++  v7
+    =,  v8
     |%
     +$  v-channels  (map nest v-channel)
     ++  v-channel
@@ -596,14 +731,14 @@
     +$  create-channel
       $:  =kind
           name=term
-          group=flag:g
+          group=flag:gv
           title=cord
           description=cord
-          readers=(set sect:g)
-          writers=(set sect:g)
+          readers=(set sect:gv)
+          writers=(set sect:gv)
       ==
     +$  a-channel
-      $%  [%join group=flag:g]
+      $%  [%join group=flag:gv]
           [%leave ~]
           a-remark
           c-channel
@@ -631,39 +766,15 @@
           sent=time
       ==
     +$  essay  [memo =kind-data]
-    +$  story  (list verse)
-    +$  verse
-      $%  [%block p=block]
-          [%inline p=(list inline)]
+    +$  kind-data
+      $%  [%diary title=@t image=@t]
+          [%heap title=(unit @t)]
+          [%chat kind=$@(~ [%notice ~])]
       ==
-    +$  listing
-      $%  [%list p=?(%ordered %unordered %tasklist) q=(list listing) r=(list inline)]
-          [%item p=(list inline)]
-      ==
-    +$  block
-      $%  [%image src=cord height=@ud width=@ud alt=cord]
-          [%cite =cite:c]
-          [%header p=?(%h1 %h2 %h3 %h4 %h5 %h6) q=(list inline)]
-          [%listing p=listing]
-          [%rule ~]
-          [%code code=cord lang=cord]
-      ==
-    +$  inline
-      $@  @t
-      $%  [%italics p=(list inline)]
-          [%bold p=(list inline)]
-          [%strike p=(list inline)]
-          [%blockquote p=(list inline)]
-          [%inline-code p=cord]
-          [%code p=cord]
-          [%ship p=ship]
-          [%block p=@ud q=cord]
-          [%tag p=cord]
-          [%link p=cord q=cord]
-          [%task p=?(%.y %.n) q=(list inline)]
-          [%break ~]
-      ==
-    +$  v-replies     ((mop id-reply (unit v-reply)) lte)
+    ++  story  story:v0:ver:s
+    ++  verse  verse:v0:ver:s
+    ++  inline  inline:v0:ver:s
+    ++  listing  listing:v0:ver:s
     +$  channels  (map nest channel)
     ++  channel
       |^  ,[global local]
@@ -725,7 +836,7 @@
           [%perm =perm]
         ::
           [%create =perm]
-          [%join group=flag:g]
+          [%join group=flag:gv]
           [%leave ~]
           a-remark
       ==
@@ -779,8 +890,8 @@
           [%view =view]
           [%sort =sort]
           [%order order=arranged-posts]
-          [%add-writers sects=(set sect:g)]
-          [%del-writers sects=(set sect:g)]
+          [%add-writers sects=(set sect:v0:gv)]
+          [%del-writers sects=(set sect:v0:gv)]
       ==
     +$  c-post
       $%  [%add =essay]
@@ -828,6 +939,7 @@
     +$  reply-seal  [id=id-reply parent-id=id-post =reacts]
     ++  on-simple-posts    ((on id-post (unit simple-post)) lte)
     ++  on-replies  ((on id-reply (unit reply)) lte)
+    +$  v-replies  ((mop id-reply (unit v-reply)) lte)
     ++  on-v-replies  ((on id-reply (unit v-reply)) lte)
     ++  on-simple-replies  ((on id-reply simple-reply) lte)
     +$  simple-post  [simple-seal essay]
