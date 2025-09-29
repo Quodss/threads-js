@@ -149,7 +149,7 @@ These functions are used for interacting with Tlon Messenger app suite. `id: str
  */
 
 /**
- * @typedef {(nest: Nest, n: number) => {key: string, message: Memo}[]} tlon.get_channel-messages
+ * @typedef {(nest: Nest, n: number) => {key: string, message: Memo}[]} tlon.get_channel_messages
  * @description Returns a list of N last messages in a given channel with their unique keys
  */
 
@@ -200,7 +200,8 @@ These functions are used for interacting with Tlon Messenger app suite. `id: str
 
 /**
  * @typedef {(nest: Nest, ship: string, role: string) => ()} tlon.give_role
- * @description Give role to a user in the group of a channel
+ * @description Give role to a user in the group of a channel. The role has to
+ * already exist to be given. It can be created in Tlon app UI.
  */
 
 /**
@@ -228,12 +229,12 @@ These functions are used to interact with `%pals` agent.
 
 ```js
 /**
- * @typedef {() => string[]} pals.leeches
+ * @typedef {() => string[]} pals.get_leeches
  * @description Get a list of incoming pals requests
  */
 
 /**
- * @typedef {(?tag: string) => string[]} pals.targets
+ * @typedef {(?tag: string) => string[]} pals.get_targets
  * @description Get a list of outgoing pals requests, filtered with an optional tag
  */
 ```

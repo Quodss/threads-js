@@ -55,7 +55,8 @@
     =*  on-replies-chan  =>  v-sur-channels  on-replies
     =*  story            =>  v-sur-channels  story
     =*  action-c         =>  v-sur-channels  a-channels
-    =*  mo-posts         ((mp time (each post tombstone:v-sur-channels)) lte)
+    =*  tomb-channels    =>  v-sur-channels  tombstone
+    =*  mo-posts         ((mp time (each post tomb-channels)) lte)
     ::
     =*  v-sur-chat       v6:chat-ver-sur
     =*  dm               =>  v-sur-chat  dm
@@ -67,7 +68,8 @@
     =*  id-club          =>  v-sur-chat  id:club
     =*  action-club      =>  v-sur-chat  action:club
     =*  action-dm        =>  v-sur-chat  action:dm
-    =*  mo-writs         ((mp time (each writ tombstone:v-sur-chat)) lte)
+    =*  tomb-chat        =>  v-sur-chat  tombstone
+    =*  mo-writs         ((mp time (each writ tomb-chat)) lte)
     ::
     =*  v-sur-groups     v7:groups-ver-sur
     =*  flag             =>  v-sur-groups  flag
@@ -76,6 +78,12 @@
     =*  action-g         =>  v-sur-groups  a-groups
     ::
     |%
+    ++  ease-discipline
+      %-  slog
+      :_  ~
+      'This path is not covered with +discipline table in %groups \
+      /(%vats bv0q9), so the agent yaps at a "mismatching mark", ignore it'
+    ::
     ++  ext
       |%
       ++  restart  (call-ext:arr %restart ~)
@@ -333,8 +341,9 @@
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
+        %-  ease-discipline
         %:  scry  (set ship)  %gx  %groups
-          /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
+          /v2/groups/(scot %p p.group)/[q.group]/seats/ships/noun
         ==
       ::  +get-club-members: get members of a groupchat
       ::
@@ -358,6 +367,7 @@
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
+        %-  ease-discipline
         ;<  vessel=(unit seat)  bind:m
           %:  scry  (unit seat)  %gx  %groups
             /v2/groups/(scot %p p.group)/[q.group]/seats/(scot %p her)/noun
@@ -374,11 +384,12 @@
         =/  m  (strand ,~)
         ^-  form:m
         ;<  =channels  bind:m
-          (scry channels %gx %channels /v3/channels/full/channels-3)  ::  remove full
+          (scry channels %gx %channels /v4/channels/channels-4)
         ::
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
+          %-  ease-discipline
           %:  scry  (set ship)  %gx  %groups
             /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
@@ -421,6 +432,7 @@
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
+          %-  ease-discipline
           %:  scry  (set ship)  %gx  %groups
             /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
@@ -441,6 +453,7 @@
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
+          %-  ease-discipline
           %:  scry  (set ship)  %gx  %groups
             /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
@@ -461,6 +474,7 @@
         ?~  channel=(~(get by channels) nest)  (pure:m ~)
         =/  group=flag  group.perm.u.channel
         ;<  members=(set ship)  bind:m
+          %-  ease-discipline
           %:  scry  (set ship)  %gx  %groups
             /v2/groups/(scot %p p.group)/[q.group]/seats/ships/ships
           ==
@@ -805,7 +819,9 @@
         |=  *
         ^-  form:m
         ;<  pals-exist=?  bind:m  (scry ? %gu %pals /$)
-        ?.  pals-exist  (pure:m vase+!>(~) ~)
+        ?.  pals-exist
+          ~>  %slog.[2 '%pals missing, "|install ~paldev %pals"']
+          (pure:m vase+!>(~) ~)
         ;<  s=(set @p)    bind:m  (scry (set @p) %gx %pals /leeches/noun)
         (pure:m vase+!>(s) ~)
       ::
@@ -815,7 +831,10 @@
         |=  l=(pole lv)
         ^-  form:m
         ;<  pals-exist=?  bind:m  (scry ? %gu %pals /$)
-        ?.  pals-exist  (pure:m vase+!>(~) ~)
+        ?.  pals-exist
+          ~>  %slog.[2 '%pals missing, "|install ~paldev %pals"']
+          ::
+          (pure:m vase+!>(~) ~)
         ?>  ?=([[%vase p=*] ~] l)
         =+  !<(tag=(unit @ta) p.l)
         ;<  s=(set @p)  bind:m
@@ -2190,25 +2209,28 @@
       ++  targets
         |=  [ctx-u=@ this-u=@ argc-w=@ argv-u=@]
         =/  m  (script:lia-sur:wasm @ acc-mold)
-        ^-  form:m
+        |^  ^-  form:m
         =,  arr
         ?:  =(argc-w 0)
-          ::  get all targets
-          ::
           ;<  res=(pole lv)  try:m  (get-targets:ext ~)
-          ?>  ?=([[%vase p=*] ~] res)
-          =+  !<(s=(set @p) p.res)
-          (store-json a+(turn ~(tap in s) ship:enjs))
-        ::  if the tag is valid filter targets by tag,
-        ::  else empty list
-        ::
+          (store-json (ships res))
         ;<  tag-str=cord  try:m  (get-js-string argv-u)
-        ?.  &(((sane %ta) tag-str) !=(~ tag-str))
+        ?:  =(~ tag-str)
+          ;<  res=(pole lv)  try:m  (get-targets:ext ~)
+          (store-json (ships res))
+        ?.  ((sane %ta) tag-str)
+          ~&  >>  "Insane tag: {(trip tag-str)}"
           (call-1 'QTS_NewArray' ctx-u ~)
         ;<  res=(pole lv)  try:m  (get-targets:ext ~ `@ta`tag-str)
-        ?>  ?=([[%vase p=*] ~] res)
-        =+  !<(s=(set @p) p.res)
-        (store-json a+(turn ~(tap in s) ship:enjs))
+        (store-json (ships res))
+        ::
+        ++  ships
+          |=  res=(pole lv)
+          ^-  json
+          ?>  ?=([[%vase p=*] ~] res)
+          =+  !<(s=(set @p) p.res)
+          a+(turn ~(tap in s) ship:enjs)
+        --
       --
     ::  +qts-host-call-function: Wasm import to resolve JS imports
     ::
