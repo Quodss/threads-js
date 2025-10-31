@@ -9,14 +9,12 @@
 /+  sj=story-json
 /*  quick-js-wasm  %wasm  /quick-js-emcc/wasm
 ::
-=,  strand=strand:spider
-=*  cw  coin-wasm:wasm-sur:wasm
-=*  lv  lia-value:lia-sur:wasm
+=*  strand       strand:spider
+=*  cw           coin-wasm:wasm-sur:wasm
+=*  lv           lia-value:lia-sur:wasm
 =*  script-form  script-raw-form:lia-sur:wasm
 =*  strand-form  strand-form-raw:rand
-=*  yield  script-yield:lia-sur:wasm
-=*  stub  !!
-!:
+=*  yield        script-yield:lia-sur:wasm
 ::  Types, interfaces
 ::
 =>  |%
@@ -71,7 +69,7 @@
     =*  tomb-chat        =>  v-sur-chat  tombstone
     =*  mo-writs         ((mp time (each writ tomb-chat)) lte)
     ::
-    =*  v-sur-groups     v7:groups-ver-sur
+    =*  v-sur-groups     v8:groups-ver-sur
     =*  flag             =>  v-sur-groups  flag
     =*  seat             =>  v-sur-groups  seat
     =*  role-groups      =>  v-sur-groups  role-id
